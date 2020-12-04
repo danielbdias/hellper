@@ -106,7 +106,7 @@ func CancelIncidentByDialog(
 	logWriter := app.Logger.With(
 		log.NewValue("userID", incidentDetails.User.ID),
 		log.NewValue("channelID", incidentDetails.Channel.ID),
-		log.NewValue("description", incidentDetails.Submission.IncidentDescription),
+		log.NewValue("description", incidentDetails.Submission["incident_description"]),
 		log.NewValue("productChannelID", config.Env.ProductChannelID),
 	)
 
