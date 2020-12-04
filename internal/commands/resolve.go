@@ -34,7 +34,7 @@ func ResolveIncidentDialog(app *app.App, triggerID string) error {
 
 	postMortemMeeting := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
-			Label:       "Schedule a Post Mortem meeting?",
+			Label:       "Should I schedule a Post Mortem meeting?",
 			Name:        "post_mortem_meeting",
 			Type:        "select",
 			Placeholder: "Post Mortem Meeting",
