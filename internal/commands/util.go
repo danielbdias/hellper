@@ -222,6 +222,8 @@ func getDialogOptionsWithSeverityLevels() []slack.DialogSelectOption {
 }
 
 func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
+	const titleMaxSize = 64
+
 	// first allow only alphanumeric characters on title, based on https://golangcode.com/how-to-remove-all-non-alphanumerical-characters-from-a-string/
 	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 
@@ -232,8 +234,8 @@ func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
 	processedIncidentTitle := strings.ToLower(reg.ReplaceAllString(incidentTitle, ""))
 
 	// then truncate if needed, because Slack supports channel names with an maximum of 80 characters
-	if len(processedIncidentTitle) > 67 { // 67 is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
-		processedIncidentTitle = processedIncidentTitle[:67]
+	if len(processedIncidentTitle) > titleMaxSize { // timeMaxSize is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
+		processedIncidentTitle = processedIncidentTitle[:titleMaxSize]
 	}
 
 	// finally, concatenate "inc-" as prefix and a date string as suffix
