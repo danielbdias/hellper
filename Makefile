@@ -34,6 +34,9 @@ run: ## Run application
 run-local: ## Run application locally (without docker)
 	go run ./cmd/http -v
 
+run-db: ## Start the database on docker
+	docker-compose up -d hellper_db
+
 migrate: ## Migrate the database
 	docker-compose exec hellper sh -c "go run ./cmd/migrations -v"
 
