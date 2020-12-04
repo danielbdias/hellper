@@ -29,7 +29,7 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 	query := `
 	SELECT
 		service_instance.id as id,
-		(service.name || '/' || service_instance.name) as name
+		(service.name || ' / ' || service_instance.name) as name
 	FROM public.service
 	INNER JOIN public.service_instance on service_instance.service_id = service.id
 	`

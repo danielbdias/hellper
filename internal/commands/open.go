@@ -288,7 +288,7 @@ func createOpenAttachment(incident model.Incident, incidentID int64, meetingURL 
 	messageText.WriteString("An Incident has been opened by <@" + incident.IncidentAuthor + ">\n\n")
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
-	messageText.WriteString("*Product:* " + incident.Product + "\n")
+	messageText.WriteString("*Product / Service:* " + incident.Product + "\n")
 	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
 	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
@@ -327,7 +327,7 @@ func createOpenAttachment(incident model.Incident, incidentID int64, meetingURL 
 				Value: getSeverityLevelText(incident.SeverityLevel),
 			},
 			{
-				Title: "Product",
+				Title: "Product / Service",
 				Value: incident.Product,
 			},
 			{
