@@ -243,3 +243,30 @@ func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
 
 	return processedIncidentTitle, nil
 }
+
+func fillTopic(
+	ctx context.Context, app *app.App, incident model.Incident,
+	channelID string, meetingURL string, postMortemURL string,
+) {
+	var topic strings.Builder
+	if meetingURL != "" {
+		topic.WriteString("*Meeting:* " + meetingURL + "\n\n")
+	}
+	if postMortemURL != "" {
+		topic.WriteString("*PostMortemURL:* " + postMortemURL + "\n\n")
+	}
+	topic.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
+	topicString := topic.String()
+
+	_, err := app.Client.SetTopicOfConversation(channelID, topicString)
+	if err != nil {
+		app.Logger.Error(
+			ctx,
+			log.Trace(),
+			log.Reason("SetTopicOfConversation"),
+			log.NewValue("channel.ID", channelID),
+			log.NewValue("topic.String", topicString),
+			log.NewValue("error", err),
+		)
+	}
+}

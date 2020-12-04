@@ -233,7 +233,7 @@ func StartIncidentByDialog(
 		//We need run that without wait because the modal need close in only 3s
 		go createPostMortemAndFillTopic(ctx, app, incident, incidentID, channel, meetingURL)
 	} else {
-		fillTopic(ctx, app, incident, channel, meetingURL, "")
+		fillTopic(ctx, app, incident, channel.ID, meetingURL, "")
 	}
 
 	// startReminderStatusJob(ctx, logger, client, repository, incident)
@@ -265,33 +265,6 @@ func StartIncidentByDialog(
 	return app.Inviter.InviteStakeholders(ctx, incident, strategy)
 }
 
-func fillTopic(
-	ctx context.Context, app *app.App, incident model.Incident,
-	channel *slack.Channel, meetingURL string, postMortemURL string,
-) {
-	var topic strings.Builder
-	if meetingURL != "" {
-		topic.WriteString("*Meeting:* " + meetingURL + "\n\n")
-	}
-	if postMortemURL != "" {
-		topic.WriteString("*PostMortemURL:* " + postMortemURL + "\n\n")
-	}
-	topic.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
-	topicString := topic.String()
-
-	_, err := app.Client.SetTopicOfConversation(channel.ID, topicString)
-	if err != nil {
-		app.Logger.Error(
-			ctx,
-			log.Trace(),
-			log.Reason("SetTopicOfConversation"),
-			log.NewValue("channel.ID", channel.ID),
-			log.NewValue("topic.String", topicString),
-			log.NewValue("error", err),
-		)
-	}
-}
-
 func createPostMortemAndFillTopic(
 	ctx context.Context, app *app.App, incident model.Incident, incidentID int64, channel *slack.Channel, meetingURL string,
 ) {
@@ -307,7 +280,7 @@ func createPostMortemAndFillTopic(
 		return
 	}
 
-	fillTopic(ctx, app, incident, channel, meetingURL, postMortemURL)
+	fillTopic(ctx, app, incident, channel.ID, meetingURL, postMortemURL)
 }
 
 func createOpenAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string) slack.Attachment {
@@ -316,14 +289,23 @@ func createOpenAttachment(incident model.Incident, incidentID int64, meetingURL 
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
 	messageText.WriteString("*Product:* " + incident.Product + "\n")
-	messageText.WriteString("*Channel:* <#" + incident.ChannelID + ">\n")
+	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
 	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
 	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
-	messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
+
+	if supportTeam != "" {
+		messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
+	}
+
+	preText := ""
+
+	if supportTeam != "" {
+		preText = "*cc:* <!subteam^" + supportTeam + ">"
+	}
 
 	return slack.Attachment{
-		Pretext:  "*cc:* <!subteam^" + supportTeam + ">",
+		Pretext:  preText,
 		Fallback: messageText.String(),
 		Text:     "",
 		Color:    "#FE4D4D",

@@ -4,6 +4,11 @@ import (
 	"context"
 	"fmt"
 	"hellper/internal/app"
+	"hellper/internal/config"
+	"hellper/internal/model"
+	"strconv"
+	"strings"
+	"time"
 
 	"hellper/internal/bot"
 	"hellper/internal/log"
@@ -13,6 +18,11 @@ import (
 
 // OpenEditIncidentDialog opens a dialog on Slack, so the user can edit an incident
 func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string, triggerID string) error {
+	var (
+		dateLayout = "2006-01-02T15:04:05-0700"
+		initValue  = ""
+	)
+
 	services, err := app.ServiceRepository.ListServiceInstances(ctx)
 	if err != nil {
 		return err
@@ -23,6 +33,10 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
 		return err
+	}
+
+	if inc.StartTimestamp != nil {
+		initValue = inc.StartTimestamp.Format(dateLayout)
 	}
 
 	incidentTitle := &slack.TextInputElement{
@@ -86,6 +100,40 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		Value: inc.MeetingURL,
 	}
 
+	postMortem := &slack.TextInputElement{
+		DialogInput: slack.DialogInput{
+			Label:       "PostMortem URL",
+			Name:        "post_mortem_url",
+			Type:        "text",
+			Placeholder: "PostMortem URL used to discuss and learn about the incident  eg. Google Docs URL, Wiki URL",
+			Optional:    true,
+		},
+		Value: inc.PostMortemURL,
+	}
+
+	startDate := &slack.TextInputElement{
+		DialogInput: slack.DialogInput{
+			Label:       "Start date (" + dateLayout + ")",
+			Name:        "init_date",
+			Type:        "text",
+			Placeholder: dateLayout,
+			Optional:    true,
+		},
+		Value: initValue,
+	}
+
+	rootCause := &slack.TextInputElement{
+		DialogInput: slack.DialogInput{
+			Label:       "Root Cause",
+			Name:        "root_cause",
+			Type:        "textarea",
+			Placeholder: "Incident root cause description.",
+			Optional:    true,
+		},
+		MaxLength: 500,
+		Value:     inc.RootCause,
+	}
+
 	description := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
 			Label:       "Incident description",
@@ -97,10 +145,11 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		MaxLength: 500,
 	}
 
+	// Slack force us to have a maximum of 10 fields in the dialog
 	dialog := slack.Dialog{
 		CallbackID:     "inc-edit",
 		Title:          "Edit an Incident",
-		SubmitLabel:    "Edit",
+		SubmitLabel:    "Save",
 		NotifyOnCancel: false,
 		Elements: []slack.DialogElement{
 			incidentTitle,
@@ -108,6 +157,9 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			commander,
 			severityLevel,
 			meeting,
+			postMortem,
+			startDate,
+			rootCause,
 			description,
 		},
 	}
@@ -127,41 +179,147 @@ func EditIncidentByDialog(
 		log.NewValue("incident_edit_details", incidentDetails),
 	)
 
-	// var (
-	// 	now            = time.Now().UTC()
-	// 	incidentAuthor = incidentDetails.User.ID
-	// 	submission     = incidentDetails.Submission
-	// 	incidentTitle  = submission.IncidentTitle
-	// 	channelName    = submission.ChannelName
-	// 	severityLevel  = submission.SeverityLevel
-	// 	product        = submission.Product
-	// 	commander      = submission.IncidentCommander
-	// 	description    = submission.IncidentDescription
-	// )
+	var (
+		userID        = incidentDetails.User.ID
+		channelID     = incidentDetails.Channel.ID
+		channelName   = incidentDetails.Channel.Name
+		submission    = incidentDetails.Submission
+		incidentTitle = submission["incident_title"]
+		product       = submission["product"]
+		commander     = submission["incident_commander"]
+		severityLevel = submission["severity_level"]
+		meeting       = submission["meeting_url"]
+		postMortem    = submission["post_mortem_url"]
+		initDateText  = submission["init_date"]
+		rootCause     = submission["root_cause"]
+		description   = submission["incident_description"]
+		supportTeam   = config.Env.SupportTeam
+		dateLayout    = "2006-01-02T15:04:05-0700"
+		initDate      time.Time
+	)
+
+	incidentBeforeEdit, err := app.IncidentRepository.GetIncident(ctx, channelID)
+	if err != nil {
+		return err
+	}
+
+	user, err := getSlackUserInfo(ctx, app, commander)
+	if err != nil {
+		return fmt.Errorf("commands.EditIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
+	}
+
+	severityLevelInt64, err := getStringInt64(severityLevel)
+	if err != nil {
+		return err
+	}
+
+	initDate, err = time.Parse(dateLayout, initDateText)
+	if err != nil {
+		app.Logger.Error(
+			ctx,
+			"command.EditIncidentByDialog Parse ERROR",
+			log.NewValue("channelID", channelID),
+			log.NewValue("initDateText", initDateText),
+			log.NewValue("error", err),
+		)
+
+		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
+		return err
+	}
+
+	incident := model.Incident{
+		ID:                 incidentBeforeEdit.ID,
+		Title:              incidentTitle,
+		Product:            product,
+		DescriptionStarted: description,
+		StartTimestamp:     &initDate,
+		SeverityLevel:      severityLevelInt64,
+		CommanderID:        user.SlackID,
+		CommanderEmail:     user.Email,
+		MeetingURL:         meeting,
+		PostMortemURL:      postMortem,
+		RootCause:          rootCause,
+	}
+
+	err = app.IncidentRepository.UpdateIncident(ctx, &incident)
+
+	if err != nil {
+		return err
+	}
+
+	if incidentBeforeEdit.CommanderID != incident.CommanderID ||
+		incidentBeforeEdit.PostMortemURL != incident.PostMortemURL ||
+		incidentBeforeEdit.MeetingURL != incident.MeetingURL {
+		fillTopic(ctx, app, incident, channelID, meeting, postMortem)
+	}
+
+	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, meeting, supportTeam)
+	message := "An Incident has been edited by <@" + incidentDetails.User.Name + ">"
+
+	postAndPinMessage(app, channelID, message, attachment)
 
 	return nil
-	// user, err := getSlackUserInfo(ctx, app, commander)
-	// if err != nil {
-	// 	return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
-	// }
+}
 
-	// severityLevelInt64, err := getStringInt64(severityLevel)
-	// if err != nil {
-	// 	return err
-	// }
+func createEditAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string) slack.Attachment {
+	var messageText strings.Builder
+	messageText.WriteString("An Incident has been edited by <@" + incident.IncidentAuthor + ">\n\n")
+	messageText.WriteString("*Title:* " + incident.Title + "\n")
+	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
+	messageText.WriteString("*Product:* " + incident.Product + "\n")
+	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
+	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
+	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
+	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
 
-	// incident := model.Incident{
-	// 	Title:                   incidentTitle,
-	// 	Product:                 product,
-	// 	DescriptionStarted:      description,
-	// 	Status:                  model.StatusOpen,
-	// 	IdentificationTimestamp: &now,
-	// 	SeverityLevel:           severityLevelInt64,
-	// 	IncidentAuthor:          incidentAuthor,
-	// 	CommanderID:             user.SlackID,
-	// 	CommanderEmail:          user.Email,
-	// }
+	if supportTeam != "" {
+		messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
+	}
 
-	// _, err = app.IncidentRepository.UpdateIncident(ctx, &incident)
-	// return err
+	preText := ""
+
+	if supportTeam != "" {
+		preText = "*cc:* <!subteam^" + supportTeam + ">"
+	}
+
+	return slack.Attachment{
+		Pretext:  preText,
+		Fallback: messageText.String(),
+		Text:     "",
+		Color:    "#FE4D4D",
+		Fields: []slack.AttachmentField{
+			{
+				Title: "Incident ID",
+				Value: strconv.FormatInt(incidentID, 10),
+			},
+			{
+				Title: "Incident Channel",
+				Value: "<#" + incident.ChannelID + ">",
+			},
+			{
+				Title: "Incident Title",
+				Value: incident.Title,
+			},
+			{
+				Title: "Severity",
+				Value: getSeverityLevelText(incident.SeverityLevel),
+			},
+			{
+				Title: "Product",
+				Value: incident.Product,
+			},
+			{
+				Title: "Commander",
+				Value: "<@" + incident.CommanderID + ">",
+			},
+			{
+				Title: "Description",
+				Value: "```" + incident.DescriptionStarted + "```",
+			},
+			{
+				Title: "Meeting",
+				Value: meetingURL,
+			},
+		},
+	}
 }

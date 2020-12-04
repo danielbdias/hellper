@@ -6,7 +6,7 @@ import "context"
 type IncidentRepository interface {
 	AddPostMortemURL(context.Context, string, string) error
 	InsertIncident(context.Context, *Incident) (int64, error)
-	UpdateIncident(context.Context, *Incident) (int64, error)
+	UpdateIncident(context.Context, *Incident) error
 	GetIncident(context.Context, string) (Incident, error)
 	UpdateIncidentDates(context.Context, *Incident) error
 	CancelIncident(context.Context, *Incident) error

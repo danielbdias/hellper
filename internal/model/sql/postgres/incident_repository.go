@@ -133,7 +133,7 @@ func (r *incidentRepository) InsertIncident(ctx context.Context, inc *model.Inci
 }
 
 // UpdateIncident updates the incident on a database
-func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Incident) (int64, error) {
+func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Incident) error {
 	r.logger.Info(
 		ctx,
 		"postgres/incident-repository.UpdateIncident INFO",
@@ -141,45 +141,27 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 	)
 
 	updateCommand := `UPDATE incident SET
-		description_started = $1,
-		description_cancelled = $2,
-		description_resolved = $3,
-		start_ts = $4,
-		end_ts = $5,
-		identification_ts = $6,
-		responsibility = $7,
-		functionality = $8,
-		root_cause = $9,
-		customer_impact = $10,
-		meeting_url = $11,
-		status_page_url = $12,
-		post_mortem_url = $13,
-		status = $14,
-		product = $15,
-		severity_level = $16,
-		commander_id = $17,
-		commander_email = $18
-	WHERE id = $19
+		title               = $1,
+		description_started = $2,
+		start_ts            = $3,
+		root_cause          = $4,
+		meeting_url         = $5,
+		post_mortem_url     = $6,
+		product             = $7,
+		severity_level      = $8,
+		commander_id        = $9,
+		commander_email     = $10
+	WHERE id = $11
 	RETURNING id`
 
-	id := int64(0)
-
-	idResult := r.db.QueryRow(
+	_, err := r.db.Exec(
 		updateCommand,
+		inc.Title,
 		inc.DescriptionStarted,
-		inc.DescriptionCancelled,
-		inc.DescriptionResolved,
 		inc.StartTimestamp,
-		inc.EndTimestamp,
-		inc.IdentificationTimestamp,
-		inc.Responsibility,
-		inc.Functionality,
 		inc.RootCause,
-		inc.CustomerImpact,
 		inc.MeetingURL,
-		inc.StatusPageURL,
 		inc.PostMortemURL,
-		inc.Status,
 		inc.Product,
 		inc.SeverityLevel,
 		inc.CommanderID,
@@ -187,7 +169,7 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		inc.ID,
 	)
 
-	if err := idResult.Scan(&id); err != nil {
+	if err != nil {
 		r.logger.Error(
 			ctx,
 			"postgres/incident-repository.UpdateIncident ERROR",
@@ -197,7 +179,7 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 			)...,
 		)
 
-		return 0, err
+		return err
 	}
 
 	r.logger.Info(
@@ -205,7 +187,8 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		"postgres/incident-repository.UpdateIncident SUCCESS",
 		incidentLogValues(inc)...,
 	)
-	return id, nil
+
+	return nil
 }
 
 // AddPostMortemUrl adds a PostMortemUrl into an incident registerd on the repository
@@ -232,12 +215,12 @@ func (r *incidentRepository) AddPostMortemURL(ctx context.Context, channelName s
 			"postgres/incident-repository.AddPostMortemUrl ERROR",
 			log.NewValue("error", err),
 		)
-	} else {
-		logWriter.Debug(
-			ctx,
-			"postgres/incident-repository.AddPostMortemUrl SUCCESS",
-		)
 	}
+
+	logWriter.Debug(
+		ctx,
+		"postgres/incident-repository.AddPostMortemUrl SUCCESS",
+	)
 
 	return err
 }
