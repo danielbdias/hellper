@@ -101,7 +101,7 @@ func ResolveIncidentByDialog(
 	)
 
 	incident := model.Incident{
-		ChannelId:           channelID,
+		ChannelID:           channelID,
 		EndTimestamp:        &now,
 		DescriptionResolved: description,
 	}
@@ -168,7 +168,7 @@ func ResolveIncidentByDialog(
 
 	channelAttachment := createResolveChannelAttachment(inc, userName, calendarEvent)
 	privateAttachment := createResolvePrivateAttachment(incident, calendarEvent)
-	message := "The Incident <#" + incident.ChannelId + "> has been resolved by <@" + userName + ">"
+	message := "The Incident <#" + incident.ChannelID + "> has been resolved by <@" + userName + ">"
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
@@ -293,7 +293,7 @@ func createResolveChannelAttachment(inc model.Incident, userName string, event *
 		messageText       strings.Builder
 	)
 
-	messageText.WriteString("The Incident <#" + inc.ChannelId + "> has been resolved by <@" + userName + ">\n\n")
+	messageText.WriteString("The Incident <#" + inc.ChannelID + "> has been resolved by <@" + userName + ">\n\n")
 	messageText.WriteString("*End date:* <#" + endDateText + ">\n")
 	messageText.WriteString("*Description:* `" + inc.DescriptionResolved + "`\n")
 	if event == nil {
@@ -312,11 +312,11 @@ func createResolveChannelAttachment(inc model.Incident, userName string, event *
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Incident ID",
-				Value: strconv.FormatInt(inc.Id, 10),
+				Value: strconv.FormatInt(inc.ID, 10),
 			},
 			{
 				Title: "Incident Channel",
-				Value: "<#" + inc.ChannelId + ">",
+				Value: "<#" + inc.ChannelID + ">",
 			},
 			{
 				Title: "Incident Title",
@@ -354,7 +354,7 @@ func createResolvePrivateAttachment(inc model.Incident, event *model.Event) slac
 	}
 
 	return slack.Attachment{
-		Pretext:  "The Incident <#" + inc.ChannelId + "> has been resolved by you",
+		Pretext:  "The Incident <#" + inc.ChannelID + "> has been resolved by you",
 		Fallback: privateText.String(),
 		Text:     "",
 		Color:    "#1164A3",

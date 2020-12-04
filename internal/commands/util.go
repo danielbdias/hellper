@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"hellper/internal/model"
 	"strconv"
 	"strings"
 	"time"
@@ -168,4 +169,53 @@ func convertTimestamp(timestamp string) (time.Time, error) {
 	fullTime := time.Unix(timeMinutes, timeSec)
 
 	return fullTime, nil
+}
+
+func fillDialogOptionsIfNeeded(options []slack.DialogSelectOption) []slack.DialogSelectOption {
+	const minimumNumberOfOptions = 4
+
+	for len(options) < minimumNumberOfOptions {
+		options = append(options, slack.DialogSelectOption{
+			Label: "----------------",
+			Value: "0",
+		})
+	}
+
+	return options
+}
+
+func getDialogOptionsWithServiceInstances(services []*model.ServiceInstance) []slack.DialogSelectOption {
+	serviceList := []slack.DialogSelectOption{}
+
+	for _, service := range services {
+		serviceList = append(serviceList, slack.DialogSelectOption{
+			Label: service.Name,
+			Value: service.Name,
+		})
+	}
+
+	// Slack asks for at least 4 entries in the option panel. So I populate dumby options here, otherwise
+	// the open command will fail and will give no feedback whatsoever for the user.
+	return fillDialogOptionsIfNeeded(serviceList)
+}
+
+func getDialogOptionsWithSeverityLevels() []slack.DialogSelectOption {
+	return []slack.DialogSelectOption{
+		{
+			Label: getSeverityLevelText(0),
+			Value: "0",
+		},
+		{
+			Label: getSeverityLevelText(1),
+			Value: "1",
+		},
+		{
+			Label: getSeverityLevelText(2),
+			Value: "2",
+		},
+		{
+			Label: getSeverityLevelText(3),
+			Value: "3",
+		},
+	}
 }

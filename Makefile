@@ -1,6 +1,6 @@
 .PHONY: all build lint test vet
 CHECK_FILES?=$$(go list ./... | grep -v /vendor/)
-APP_NAME=notify-api
+APP_NAME=hellper
 
 GO ?= go
 GORUN ?= $(GO) run
@@ -14,7 +14,8 @@ help: ## Show this help.
 all: lint vet test build ## Run the tests and build the binary.
 
 build: ## Build the binary.
-	go build -o bin/$(APP_NAME) *.go
+	[ -d bin ] || mkdir bin
+	go build -o ./bin/$(APP_NAME) ./cmd/http
 
 lint: ## Lint the code.
 	golint $(CHECK_FILES)

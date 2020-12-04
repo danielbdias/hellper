@@ -43,6 +43,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 		},
 		MaxLength: 500,
 	}
+
 	startDate := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
 			Label:       "Incident start date (UTC)",
@@ -54,6 +55,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 		},
 		Value: "",
 	}
+
 	severityLevel := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
 			Label:       "Severity level",
@@ -86,9 +88,11 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 	dialogElements := []slack.DialogElement{
 		rootCause,
 	}
+
 	if inc.StartTimestamp == nil {
 		dialogElements = append(dialogElements, startDate)
 	}
+
 	dialogElements = append(dialogElements, severityLevel)
 
 	dialog := slack.Dialog{
@@ -183,8 +187,9 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		StartTimestamp: &startDate,
 		Team:           ownerTeamName,
 		SeverityLevel:  severityLevelInt64,
-		ChannelId:      channelID,
+		ChannelID:      channelID,
 	}
+
 	if startDateText != "" {
 		incident.StartTimestamp = &startDate
 	}
@@ -214,7 +219,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	channelAttachment := createCloseChannelAttachment(inc, userName)
 	privateAttachment := createClosePrivateAttachment(inc)
-	message := "The Incident <#" + inc.ChannelId + "> has been closed by <@" + userName + ">"
+	message := "The Incident <#" + inc.ChannelID + "> has been closed by <@" + userName + ">"
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
@@ -256,7 +261,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 func createCloseChannelAttachment(inc model.Incident, userName string) slack.Attachment {
 	var messageText strings.Builder
-	messageText.WriteString("The Incident <#" + inc.ChannelId + "> has been closed by <@" + userName + ">\n\n")
+	messageText.WriteString("The Incident <#" + inc.ChannelID + "> has been closed by <@" + userName + ">\n\n")
 	messageText.WriteString("*Team:* <#" + inc.Team + ">\n")
 	messageText.WriteString("*Severity:* `" + getSeverityLevelText(inc.SeverityLevel) + "`\n")
 	messageText.WriteString("*Root cause:* `" + inc.RootCause + "`\n\n")
@@ -269,11 +274,11 @@ func createCloseChannelAttachment(inc model.Incident, userName string) slack.Att
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Incident ID",
-				Value: strconv.FormatInt(inc.Id, 10),
+				Value: strconv.FormatInt(inc.ID, 10),
 			},
 			{
 				Title: "Incident Channel",
-				Value: "<#" + inc.ChannelId + ">",
+				Value: "<#" + inc.ChannelID + ">",
 			},
 			{
 				Title: "Incident Title",
@@ -300,7 +305,7 @@ func createClosePrivateAttachment(inc model.Incident) slack.Attachment {
 	privateText.WriteString("The Incident <#" + inc.ChannelId + "> has been closed by you\n\n")
 
 	return slack.Attachment{
-		Pretext:  "The Incident <#" + inc.ChannelId + "> has been closed by you",
+		Pretext:  "The Incident <#" + inc.ChannelID + "> has been closed by you",
 		Fallback: privateText.String(),
 		Text:     "",
 		Color:    "#FE4D4D",

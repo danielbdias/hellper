@@ -213,7 +213,7 @@ func UpdateDatesByDialog(ctx context.Context, app *app.App, incidentDetails bot.
 	}
 
 	incident := model.Incident{
-		ChannelId:               channelID,
+		ChannelID:               channelID,
 		StartTimestamp:          &initDate,
 		IdentificationTimestamp: &identificationDate,
 		EndTimestamp:            &endDate,
@@ -233,7 +233,7 @@ func UpdateDatesByDialog(ctx context.Context, app *app.App, incidentDetails bot.
 	}
 
 	successAttach := createDatesSuccessAttachment(incident, userName)
-	postMessage(app, incident.ChannelId, "", successAttach)
+	postMessage(app, incident.ChannelID, "", successAttach)
 
 	return nil
 }
@@ -258,10 +258,10 @@ func createDatesSuccessAttachment(inc model.Incident, userName string) slack.Att
 		messageText strings.Builder
 	)
 
-	messageText.WriteString("The dates of Incident <#" + inc.ChannelId + "> have been updated by <@" + userName + ">\n\n")
+	messageText.WriteString("The dates of Incident <#" + inc.ChannelID + "> have been updated by <@" + userName + ">\n\n")
 
 	return slack.Attachment{
-		Pretext:  "The dates of Incident <#" + inc.ChannelId + "> have been updated by <@" + userName + ">",
+		Pretext:  "The dates of Incident <#" + inc.ChannelID + "> have been updated by <@" + userName + ">",
 		Fallback: messageText.String(),
 		Text:     "",
 		Color:    "#6fff47",

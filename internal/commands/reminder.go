@@ -22,7 +22,7 @@ func canStopReminder(incident model.Incident) bool {
 
 func requestStatus(ctx context.Context, app *app.App, jobIncident model.Incident) func(j job.Job) {
 	return func(j job.Job) {
-		incident, err := app.IncidentRepository.GetIncident(ctx, jobIncident.ChannelId)
+		incident, err := app.IncidentRepository.GetIncident(ctx, jobIncident.ChannelID)
 		if err != nil {
 			app.Logger.Error(
 				ctx,
@@ -82,7 +82,7 @@ func requestStatus(ctx context.Context, app *app.App, jobIncident model.Incident
 			return
 		}
 
-		pin, err := bot.LastPin(app.Client, incident.ChannelId)
+		pin, err := bot.LastPin(app.Client, incident.ChannelID)
 		if err != nil {
 			logWriter.Error(
 				ctx,

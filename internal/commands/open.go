@@ -19,32 +19,14 @@ import (
 	"github.com/slack-go/slack"
 )
 
-const minimumNumberServices = 4
-
 // OpenStartIncidentDialog opens a dialog on Slack, so the user can start an incident
 func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string) error {
-	serviceList := []slack.DialogSelectOption{}
-
 	services, err := app.ServiceRepository.ListServiceInstances(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Slack asks for at least 4 entries in the option panel. So I populate dumby options here, otherwise
-	// the open command will fail and will give no feedback whatsoever for the user.
-	for len(services) < minimumNumberServices {
-		services = append(services, &model.ServiceInstance{
-			ID:   "-",
-			Name: "-",
-		})
-	}
-
-	for _, service := range services {
-		serviceList = append(serviceList, slack.DialogSelectOption{
-			Label: service.Name,
-			Value: service.Name,
-		})
-	}
+	serviceList := getDialogOptionsWithServiceInstances(services)
 
 	incidentTitle := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
@@ -54,16 +36,6 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 			Placeholder: "My Incident Title",
 		},
 		MaxLength: 100,
-	}
-
-	channelName := &slack.TextInputElement{
-		DialogInput: slack.DialogInput{
-			Label:       "Channel name",
-			Name:        "channel_name",
-			Type:        "text",
-			Placeholder: "inc-my-incident",
-		},
-		MaxLength: 30,
 	}
 
 	meeting := &slack.TextInputElement{
@@ -84,24 +56,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 			Placeholder: "Set the severity level",
 			Optional:    false,
 		},
-		Options: []slack.DialogSelectOption{
-			{
-				Label: "SEV0 - All hands on deck",
-				Value: "0",
-			},
-			{
-				Label: "SEV1 - Critical impact to many users",
-				Value: "1",
-			},
-			{
-				Label: "SEV2 - Minor issue that impacts ability to use product",
-				Value: "2",
-			},
-			{
-				Label: "SEV3 - Minor issue not impacting ability to use product",
-				Value: "3",
-			},
-		},
+		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
 
@@ -204,7 +159,7 @@ func StartIncidentByDialog(
 
 	incident := model.Incident{
 		ChannelName:             channelName,
-		ChannelId:               channel.ID,
+		ChannelID:               channel.ID,
 		Title:                   incidentTitle,
 		Product:                 product,
 		DescriptionStarted:      description,
@@ -212,7 +167,7 @@ func StartIncidentByDialog(
 		IdentificationTimestamp: &now,
 		SeverityLevel:           severityLevelInt64,
 		IncidentAuthor:          incidentAuthor,
-		CommanderId:             user.SlackID,
+		CommanderID:             user.SlackID,
 		CommanderEmail:          user.Email,
 	}
 
@@ -302,7 +257,7 @@ func fillTopic(
 	if postMortemURL != "" {
 		topic.WriteString("*PostMortemURL:* " + postMortemURL + "\n\n")
 	}
-	topic.WriteString("*Commander:* <@" + incident.CommanderId + ">\n\n")
+	topic.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	topicString := topic.String()
 
 	_, err := app.Client.SetTopicOfConversation(channel.ID, topicString)
@@ -342,8 +297,8 @@ func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoo
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
 	messageText.WriteString("*Product:* " + incident.Product + "\n")
-	messageText.WriteString("*Channel:* <#" + incident.ChannelId + ">\n")
-	messageText.WriteString("*Commander:* <@" + incident.CommanderId + ">\n\n")
+	messageText.WriteString("*Channel:* <#" + incident.ChannelID + ">\n")
+	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
 	messageText.WriteString("*Incident Room:* " + incidentRoomURL + "\n")
 	messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
@@ -360,7 +315,7 @@ func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoo
 			},
 			{
 				Title: "Incident Channel",
-				Value: "<#" + incident.ChannelId + ">",
+				Value: "<#" + incident.ChannelID + ">",
 			},
 			{
 				Title: "Incident Title",
@@ -376,7 +331,7 @@ func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoo
 			},
 			{
 				Title: "Commander",
-				Value: "<@" + incident.CommanderId + ">",
+				Value: "<@" + incident.CommanderID + ">",
 			},
 			{
 				Title: "Description",
