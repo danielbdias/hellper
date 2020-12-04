@@ -78,7 +78,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 
 	shouldCreateMeeting := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
-			Label:       "Create an Incident Meeting?",
+			Label:       "Should I create an Incident Meeting?",
 			Name:        "create_meeting",
 			Type:        "select",
 			Placeholder: "Select an option",
@@ -86,11 +86,11 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 		},
 		Options: []slack.DialogSelectOption{
 			{
-				Label: "yes",
+				Label: "Yes",
 				Value: "yes",
 			},
 			{
-				Label: "no",
+				Label: "No",
 				Value: "no",
 			},
 		},
