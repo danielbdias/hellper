@@ -64,24 +64,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 			Placeholder: "Set the severity level",
 			Optional:    true,
 		},
-		Options: []slack.DialogSelectOption{
-			{
-				Label: "SEV0 - All hands on deck",
-				Value: "0",
-			},
-			{
-				Label: "SEV1 - Critical impact to many users",
-				Value: "1",
-			},
-			{
-				Label: "SEV2 - Minor issue that impacts ability to use product",
-				Value: "2",
-			},
-			{
-				Label: "SEV3 - Minor issue not impacting ability to use product",
-				Value: "3",
-			},
-		},
+		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
 
@@ -119,9 +102,9 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		userID           = incidentDetails.User.ID
 		userName         = incidentDetails.User.Name
 		submissions      = incidentDetails.Submission
-		rootCause        = submissions.RootCause
-		startDateText    = submissions.InitDate
-		severityLevel    = submissions.SeverityLevel
+		startDateText    = submissions["init_date"]
+		severityLevel    = submissions["severity_level"]
+		rootCause        = submissions["root_cause"]
 		notifyOnClose    = config.Env.NotifyOnClose
 		productChannelID = config.Env.ProductChannelID
 

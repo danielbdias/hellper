@@ -140,10 +140,10 @@ func UpdateDatesByDialog(ctx context.Context, app *app.App, incidentDetails bot.
 		userID                 = incidentDetails.User.ID
 		userName               = incidentDetails.User.Name
 		submissions            = incidentDetails.Submission
-		timeZoneString         = submissions.TimeZone
-		initDateText           = submissions.InitDate
-		identificationDateText = submissions.IdentificationDate
-		endDateText            = submissions.EndDate
+		timeZoneString         = submissions["time_zone"]
+		initDateText           = submissions["init_date"]
+		identificationDateText = submissions["identification_date"]
+		endDateText            = submissions["end_date"]
 
 		initDate           time.Time
 		identificationDate time.Time

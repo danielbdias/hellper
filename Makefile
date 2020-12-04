@@ -41,6 +41,9 @@ run-db: ## Start the database on docker
 migrate: ## Migrate the database
 	docker-compose exec hellper sh -c "go run ./cmd/migrations -v"
 
+migrate-local: ## Migrate the database using local binaries
+	go run ./cmd/migrations -v
+
 clean: ## Remove all resources
 	docker-compose rm -sf
 

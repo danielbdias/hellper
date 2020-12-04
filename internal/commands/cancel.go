@@ -123,7 +123,7 @@ func CancelIncidentByDialog(
 		productChannelID = config.Env.ProductChannelID
 		userID           = incidentDetails.User.ID
 		channelID        = incidentDetails.Channel.ID
-		description      = incidentDetails.Submission.IncidentDescription
+		description      = incidentDetails.Submission["incident_description"]
 		requestCancel    = model.Incident{
 			ChannelID:            channelID,
 			DescriptionCancelled: description,

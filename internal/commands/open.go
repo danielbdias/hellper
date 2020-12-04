@@ -20,7 +20,7 @@ import (
 )
 
 // OpenStartIncidentDialog opens a dialog on Slack, so the user can start an incident
-func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string) error {
+func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, triggerID string) error {
 	services, err := app.ServiceRepository.ListServiceInstances(ctx)
 	if err != nil {
 		return err
@@ -38,14 +38,32 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 		MaxLength: 100,
 	}
 
-	meeting := &slack.TextInputElement{
+	shouldCreateMeeting := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
-			Label:       "Incident Room URL",
-			Name:        "incident_room_url",
-			Type:        "text",
-			Placeholder: "Incident Room URL eg. Zoom Join URL, Google Meet URL",
-			Optional:    true,
+			Label:       "Create an Incident Meeting?",
+			Name:        "create_meeting",
+			Type:        "select",
+			Placeholder: "Select an option",
+			Optional:    false,
 		},
+		SelectedOptions: []slack.DialogSelectOption{
+			{
+				Label: "yes",
+				Value: "yes",
+			},
+		},
+		Options: []slack.DialogSelectOption{
+			{
+				Label: "yes",
+				Value: "yes",
+			},
+			{
+				Label: "no",
+				Value: "no",
+			},
+		},
+		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        "yes",
 	}
 
 	severityLevel := &slack.DialogInputSelect{
@@ -58,14 +76,15 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 		},
 		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        "2",
 	}
 
 	product := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
-			Label:       "Product",
+			Label:       "Product / Service",
 			Name:        "product",
 			Type:        "select",
-			Placeholder: "Set the product",
+			Placeholder: "Set the product / service",
 			Optional:    false,
 		},
 		Options:      serviceList,
@@ -80,6 +99,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 			Placeholder: "Set the Incident commander",
 			Optional:    false,
 		},
+		Value:        userID,
 		DataSource:   "users",
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
@@ -89,8 +109,8 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 			Label:       "Incident description",
 			Name:        "incident_description",
 			Type:        "textarea",
-			Placeholder: "Incident description eg. We're having issues with the Product X or Service Y",
-			Optional:    false,
+			Placeholder: "Brief description on what is happening in this incident. eg. We're having issues with the Product X or Service Y",
+			Optional:    true,
 		},
 		MaxLength: 500,
 	}
@@ -102,11 +122,10 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, triggerID string
 		NotifyOnCancel: false,
 		Elements: []slack.DialogElement{
 			incidentTitle,
-			channelName,
-			meeting,
-			severityLevel,
 			product,
 			commander,
+			severityLevel,
+			shouldCreateMeeting,
 			description,
 		},
 	}
@@ -130,17 +149,22 @@ func StartIncidentByDialog(
 		now              = time.Now().UTC()
 		incidentAuthor   = incidentDetails.User.ID
 		submission       = incidentDetails.Submission
-		incidentTitle    = submission.IncidentTitle
-		channelName      = submission.ChannelName
-		incidentRoomURL  = submission.IncidentRoomURL
-		severityLevel    = submission.SeverityLevel
-		product          = submission.Product
-		commander        = submission.IncidentCommander
-		description      = submission.IncidentDescription
+		incidentTitle    = submission["incident_title"]
+		product          = submission["product"]
+		createMeeting    = submission["create_meeting"]
+		commander        = submission["incident_commander"]
+		severityLevel    = submission["severity_level"]
+		description      = submission["incident_description"]
 		environment      = config.Env.Environment
 		supportTeam      = config.Env.SupportTeam
 		productChannelID = config.Env.ProductChannelID
+		meetingURL       = ""
 	)
+
+	channelName, err := getChannelNameFromIncidentTitle(incidentTitle)
+	if err != nil {
+		return err
+	}
 
 	user, err := getSlackUserInfo(ctx, app, commander)
 	if err != nil {
@@ -157,26 +181,7 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	incident := model.Incident{
-		ChannelName:             channelName,
-		ChannelID:               channel.ID,
-		Title:                   incidentTitle,
-		Product:                 product,
-		DescriptionStarted:      description,
-		Status:                  model.StatusOpen,
-		IdentificationTimestamp: &now,
-		SeverityLevel:           severityLevelInt64,
-		IncidentAuthor:          incidentAuthor,
-		CommanderID:             user.SlackID,
-		CommanderEmail:          user.Email,
-	}
-
-	incidentID, err := app.IncidentRepository.InsertIncident(ctx, &incident)
-	if err != nil {
-		return err
-	}
-
-	if incidentRoomURL == "" {
+	if createMeeting == "yes" {
 		options := map[string]string{
 			"channel":     channelName,
 			"environment": environment,
@@ -193,10 +198,30 @@ func StartIncidentByDialog(
 			)
 		}
 
-		incidentRoomURL = url
+		meetingURL = url
 	}
 
-	attachment := createOpenAttachment(incident, incidentID, incidentRoomURL, supportTeam)
+	incident := model.Incident{
+		ChannelName:             channelName,
+		ChannelID:               channel.ID,
+		Title:                   incidentTitle,
+		Product:                 product,
+		DescriptionStarted:      description,
+		Status:                  model.StatusOpen,
+		IdentificationTimestamp: &now,
+		SeverityLevel:           severityLevelInt64,
+		IncidentAuthor:          incidentAuthor,
+		CommanderID:             user.SlackID,
+		CommanderEmail:          user.Email,
+		MeetingURL:              meetingURL,
+	}
+
+	incidentID, err := app.IncidentRepository.InsertIncident(ctx, &incident)
+	if err != nil {
+		return err
+	}
+
+	attachment := createOpenAttachment(incident, incidentID, meetingURL, supportTeam)
 	message := "An Incident has been opened by <@" + incident.IncidentAuthor + ">"
 
 	var waitgroup sync.WaitGroup
@@ -212,9 +237,9 @@ func StartIncidentByDialog(
 	shouldWritePostMortem := app.FileStorage != nil
 	if shouldWritePostMortem {
 		//We need run that without wait because the modal need close in only 3s
-		go createPostMortemAndFillTopic(ctx, app, incident, incidentID, channel, incidentRoomURL)
+		go createPostMortemAndFillTopic(ctx, app, incident, incidentID, channel, meetingURL)
 	} else {
-		fillTopic(ctx, app, incident, channel, incidentRoomURL, "")
+		fillTopic(ctx, app, incident, channel, meetingURL, "")
 	}
 
 	// startReminderStatusJob(ctx, logger, client, repository, incident)
@@ -248,11 +273,11 @@ func StartIncidentByDialog(
 
 func fillTopic(
 	ctx context.Context, app *app.App, incident model.Incident,
-	channel *slack.Channel, incidentRoomURL string, postMortemURL string,
+	channel *slack.Channel, meetingURL string, postMortemURL string,
 ) {
 	var topic strings.Builder
-	if incidentRoomURL != "" {
-		topic.WriteString("*IncidentRoom:* " + incidentRoomURL + "\n\n")
+	if meetingURL != "" {
+		topic.WriteString("*Meeting:* " + meetingURL + "\n\n")
 	}
 	if postMortemURL != "" {
 		topic.WriteString("*PostMortemURL:* " + postMortemURL + "\n\n")
@@ -274,7 +299,7 @@ func fillTopic(
 }
 
 func createPostMortemAndFillTopic(
-	ctx context.Context, app *app.App, incident model.Incident, incidentID int64, channel *slack.Channel, incidentRoomURL string,
+	ctx context.Context, app *app.App, incident model.Incident, incidentID int64, channel *slack.Channel, meetingURL string,
 ) {
 	postMortemURL, err := createPostMortem(ctx, app, incidentID, incident.Title, channel.Name)
 	if err != nil {
@@ -288,10 +313,10 @@ func createPostMortemAndFillTopic(
 		return
 	}
 
-	fillTopic(ctx, app, incident, channel, incidentRoomURL, postMortemURL)
+	fillTopic(ctx, app, incident, channel, meetingURL, postMortemURL)
 }
 
-func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoomURL string, supportTeam string) slack.Attachment {
+func createOpenAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string) slack.Attachment {
 	var messageText strings.Builder
 	messageText.WriteString("An Incident has been opened by <@" + incident.IncidentAuthor + ">\n\n")
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
@@ -300,7 +325,7 @@ func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoo
 	messageText.WriteString("*Channel:* <#" + incident.ChannelID + ">\n")
 	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
-	messageText.WriteString("*Incident Room:* " + incidentRoomURL + "\n")
+	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
 	messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
 
 	return slack.Attachment{
@@ -338,8 +363,8 @@ func createOpenAttachment(incident model.Incident, incidentID int64, incidentRoo
 				Value: "```" + incident.DescriptionStarted + "```",
 			},
 			{
-				Title: "Incident Room",
-				Value: incidentRoomURL,
+				Title: "Meeting",
+				Value: meetingURL,
 			},
 		},
 	}

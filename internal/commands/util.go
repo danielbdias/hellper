@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hellper/internal/model"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -218,4 +219,26 @@ func getDialogOptionsWithSeverityLevels() []slack.DialogSelectOption {
 			Value: "3",
 		},
 	}
+}
+
+func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
+	// first allow only alphanumeric characters on title, based on https://golangcode.com/how-to-remove-all-non-alphanumerical-characters-from-a-string/
+	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+
+	if err != nil {
+		return "", err
+	}
+
+	processedIncidentTitle := strings.ToLower(reg.ReplaceAllString(incidentTitle, ""))
+
+	// then truncate if needed, because Slack supports channel names with an maximum of 80 characters
+	if len(processedIncidentTitle) > 67 { // 67 is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
+		processedIncidentTitle = processedIncidentTitle[:67]
+	}
+
+	// finally, concatenate "inc-" as prefix and a date string as suffix
+	currentDateAsString := time.Now().Format("yyyyMMdd")
+	processedIncidentTitle = fmt.Sprintf("inc-%s-%s", processedIncidentTitle, currentDateAsString)
+
+	return processedIncidentTitle, nil
 }

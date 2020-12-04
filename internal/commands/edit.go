@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"hellper/internal/app"
-	"time"
 
 	"hellper/internal/bot"
-	"hellper/internal/config"
 	"hellper/internal/log"
-	"hellper/internal/model"
 
 	"github.com/slack-go/slack"
 )
@@ -134,44 +131,41 @@ func EditIncidentByDialog(
 		log.NewValue("incident_edit_details", incidentDetails),
 	)
 
-	var (
-		now              = time.Now().UTC()
-		incidentAuthor   = incidentDetails.User.ID
-		submission       = incidentDetails.Submission
-		incidentTitle    = submission.IncidentTitle
-		channelName      = submission.ChannelName
-		incidentRoomURL  = submission.IncidentRoomURL
-		severityLevel    = submission.SeverityLevel
-		product          = submission.Product
-		commander        = submission.IncidentCommander
-		description      = submission.IncidentDescription
-		environment      = config.Env.Environment
-		supportTeam      = config.Env.SupportTeam
-		productChannelID = config.Env.ProductChannelID
-	)
+	// var (
+	// 	now            = time.Now().UTC()
+	// 	incidentAuthor = incidentDetails.User.ID
+	// 	submission     = incidentDetails.Submission
+	// 	incidentTitle  = submission.IncidentTitle
+	// 	channelName    = submission.ChannelName
+	// 	severityLevel  = submission.SeverityLevel
+	// 	product        = submission.Product
+	// 	commander      = submission.IncidentCommander
+	// 	description    = submission.IncidentDescription
+	// )
 
-	user, err := getSlackUserInfo(ctx, app, commander)
-	if err != nil {
-		return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
-	}
+	return nil
+	// user, err := getSlackUserInfo(ctx, app, commander)
+	// if err != nil {
+	// 	return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
+	// }
 
-	severityLevelInt64, err := getStringInt64(severityLevel)
-	if err != nil {
-		return err
-	}
+	// severityLevelInt64, err := getStringInt64(severityLevel)
+	// if err != nil {
+	// 	return err
+	// }
 
-	incident := model.Incident{
-		Title:                   incidentTitle,
-		Product:                 product,
-		DescriptionStarted:      description,
-		Status:                  model.StatusOpen,
-		IdentificationTimestamp: &now,
-		SeverityLevel:           severityLevelInt64,
-		IncidentAuthor:          incidentAuthor,
-		CommanderID:             user.SlackID,
-		CommanderEmail:          user.Email,
-	}
+	// incident := model.Incident{
+	// 	Title:                   incidentTitle,
+	// 	Product:                 product,
+	// 	DescriptionStarted:      description,
+	// 	Status:                  model.StatusOpen,
+	// 	IdentificationTimestamp: &now,
+	// 	SeverityLevel:           severityLevelInt64,
+	// 	IncidentAuthor:          incidentAuthor,
+	// 	CommanderID:             user.SlackID,
+	// 	CommanderEmail:          user.Email,
+	// }
 
-	_, err = app.IncidentRepository.UpdateIncident(ctx, &incident)
-	return err
+	// _, err = app.IncidentRepository.UpdateIncident(ctx, &incident)
+	// return err
 }

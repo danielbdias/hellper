@@ -92,8 +92,8 @@ func ResolveIncidentByDialog(
 		userID            = incidentDetails.User.ID
 		userName          = incidentDetails.User.Name
 		submissions       = incidentDetails.Submission
-		description       = submissions.IncidentDescription
-		postMortemMeeting = submissions.PostMortemMeeting
+		description       = submissions["incident_description"]
+		postMortemMeeting = submissions["post_mortem_meeting"]
 		notifyOnResolve   = config.Env.NotifyOnResolve
 		productChannelID  = config.Env.ProductChannelID
 
