@@ -36,6 +36,45 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		Value:     inc.Title,
 	}
 
+	product := &slack.DialogInputSelect{
+		DialogInput: slack.DialogInput{
+			Label:       "Product / Service",
+			Name:        "product",
+			Type:        "select",
+			Placeholder: "Set the product / service",
+			Optional:    false,
+		},
+		Options:      serviceList,
+		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        inc.Product,
+	}
+
+	commander := &slack.DialogInputSelect{
+		DialogInput: slack.DialogInput{
+			Label:       "Incident commander",
+			Name:        "incident_commander",
+			Type:        "select",
+			Placeholder: "Set the Incident commander",
+			Optional:    false,
+		},
+		Value:        inc.CommanderID,
+		DataSource:   "users",
+		OptionGroups: []slack.DialogOptionGroup{},
+	}
+
+	severityLevel := &slack.DialogInputSelect{
+		DialogInput: slack.DialogInput{
+			Label:       "Severity level",
+			Name:        "severity_level",
+			Type:        "select",
+			Placeholder: "Set the severity level",
+			Optional:    false,
+		},
+		Options:      getDialogOptionsWithSeverityLevels(),
+		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        fmt.Sprintf("%d", inc.SeverityLevel),
+	}
+
 	meeting := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
 			Label:       "Meeting URL",
@@ -47,71 +86,28 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		Value: inc.MeetingURL,
 	}
 
-	severityLevel := &slack.DialogInputSelect{
-		DialogInput: slack.DialogInput{
-			Label:       "Severity level",
-			Name:        "severity_level",
-			Type:        "select",
-			Placeholder: "Set the severity level",
-			Optional:    false,
-		},
-		SelectedOptions: []slack.DialogSelectOption{
-			{
-				Label: getSeverityLevelText(inc.SeverityLevel),
-				Value: fmt.Sprintf("%d", inc.SeverityLevel),
-			},
-		},
-		Options:      getDialogOptionsWithSeverityLevels(),
-		OptionGroups: []slack.DialogOptionGroup{},
-	}
-
-	product := &slack.DialogInputSelect{
-		DialogInput: slack.DialogInput{
-			Label:       "Service",
-			Name:        "product",
-			Type:        "select",
-			Placeholder: "Set the service",
-			Optional:    false,
-		},
-		Options:      serviceList,
-		OptionGroups: []slack.DialogOptionGroup{},
-	}
-
-	commander := &slack.DialogInputSelect{
-		DialogInput: slack.DialogInput{
-			Label:       "Incident commander",
-			Name:        "incident_commander",
-			Type:        "select",
-			Placeholder: "Set the Incident commander",
-			Optional:    false,
-		},
-		DataSource:   "users",
-		OptionGroups: []slack.DialogOptionGroup{},
-	}
-
 	description := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
 			Label:       "Incident description",
 			Name:        "incident_description",
 			Type:        "textarea",
-			Placeholder: "Incident description eg. We're having issues with the Product X or Service Y",
-			Optional:    false,
+			Placeholder: "Brief description on what is happening in this incident. eg. We're having issues with the Product X or Service Y",
+			Optional:    true,
 		},
 		MaxLength: 500,
 	}
 
 	dialog := slack.Dialog{
 		CallbackID:     "inc-edit",
-		Title:          "Edits an Incident",
+		Title:          "Edit an Incident",
 		SubmitLabel:    "Edit",
 		NotifyOnCancel: false,
 		Elements: []slack.DialogElement{
 			incidentTitle,
-			inc.ChannelName,
-			meeting,
-			severityLevel,
 			product,
 			commander,
+			severityLevel,
+			meeting,
 			description,
 		},
 	}

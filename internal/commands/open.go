@@ -38,47 +38,6 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 		MaxLength: 100,
 	}
 
-	shouldCreateMeeting := &slack.DialogInputSelect{
-		DialogInput: slack.DialogInput{
-			Label:       "Create an Incident Meeting?",
-			Name:        "create_meeting",
-			Type:        "select",
-			Placeholder: "Select an option",
-			Optional:    false,
-		},
-		SelectedOptions: []slack.DialogSelectOption{
-			{
-				Label: "yes",
-				Value: "yes",
-			},
-		},
-		Options: []slack.DialogSelectOption{
-			{
-				Label: "yes",
-				Value: "yes",
-			},
-			{
-				Label: "no",
-				Value: "no",
-			},
-		},
-		OptionGroups: []slack.DialogOptionGroup{},
-		Value:        "yes",
-	}
-
-	severityLevel := &slack.DialogInputSelect{
-		DialogInput: slack.DialogInput{
-			Label:       "Severity level",
-			Name:        "severity_level",
-			Type:        "select",
-			Placeholder: "Set the severity level",
-			Optional:    false,
-		},
-		Options:      getDialogOptionsWithSeverityLevels(),
-		OptionGroups: []slack.DialogOptionGroup{},
-		Value:        "2",
-	}
-
 	product := &slack.DialogInputSelect{
 		DialogInput: slack.DialogInput{
 			Label:       "Product / Service",
@@ -102,6 +61,41 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 		Value:        userID,
 		DataSource:   "users",
 		OptionGroups: []slack.DialogOptionGroup{},
+	}
+
+	severityLevel := &slack.DialogInputSelect{
+		DialogInput: slack.DialogInput{
+			Label:       "Severity level",
+			Name:        "severity_level",
+			Type:        "select",
+			Placeholder: "Set the severity level",
+			Optional:    false,
+		},
+		Options:      getDialogOptionsWithSeverityLevels(),
+		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        "2",
+	}
+
+	shouldCreateMeeting := &slack.DialogInputSelect{
+		DialogInput: slack.DialogInput{
+			Label:       "Create an Incident Meeting?",
+			Name:        "create_meeting",
+			Type:        "select",
+			Placeholder: "Select an option",
+			Optional:    false,
+		},
+		Options: []slack.DialogSelectOption{
+			{
+				Label: "yes",
+				Value: "yes",
+			},
+			{
+				Label: "no",
+				Value: "no",
+			},
+		},
+		OptionGroups: []slack.DialogOptionGroup{},
+		Value:        "yes",
 	}
 
 	description := &slack.TextInputElement{
