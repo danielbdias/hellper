@@ -13,9 +13,10 @@ import (
 )
 
 var (
+	ctx        = context.Background()
 	logger     = internal.NewLogger()
-	client     = internal.NewClient(logger)
-	repository = internal.NewRepository(logger)
+	client     = internal.NewClient(ctx, logger)
+	repository = internal.NewIncidentRepository(ctx, logger)
 
 	arg opt
 )
