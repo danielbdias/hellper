@@ -237,7 +237,8 @@ func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
 	}
 
 	// finally, concatenate "inc-" as prefix and a date string as suffix
-	currentDateAsString := time.Now().Format("yyyyMMdd")
+	currentDate := time.Now()
+	currentDateAsString := fmt.Sprintf("%04d%02d%02d", currentDate.Year(), currentDate.Month(), currentDate.Day())
 	processedIncidentTitle = fmt.Sprintf("inc-%s-%s", processedIncidentTitle, currentDateAsString)
 
 	return processedIncidentTitle, nil
