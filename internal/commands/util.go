@@ -16,6 +16,8 @@ import (
 	"github.com/slack-go/slack"
 )
 
+const dateLayout = "2006-01-02T15:04:05-0700"
+
 func ping(ctx context.Context, app *app.App, channelID string) {
 
 	logWriter := app.Logger.With(

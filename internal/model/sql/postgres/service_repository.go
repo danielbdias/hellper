@@ -74,8 +74,9 @@ func (r *serviceRepository) GetServiceInstanceOwnerTeamName(
 		)
 		return "", err
 	}
-	serviceName := names[0]
-	serviceInstanceName := names[1]
+
+	serviceName := strings.TrimSpace(names[0])
+	serviceInstanceName := strings.TrimSpace(names[1])
 
 	query := `
 	SELECT

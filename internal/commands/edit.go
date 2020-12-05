@@ -19,7 +19,6 @@ import (
 // OpenEditIncidentDialog opens a dialog on Slack, so the user can edit an incident
 func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string, triggerID string) error {
 	var (
-		dateLayout           = "2006-01-02T15:04:05-0700"
 		startTimestampAsText = ""
 	)
 
@@ -113,12 +112,13 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 
 	startDate := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "Start date (" + dateLayout + ")",
+			Label:       "Start date",
 			Name:        "init_date",
 			Type:        "text",
 			Placeholder: dateLayout,
 			Optional:    true,
 		},
+		Hint:  "The time is in format " + dateLayout,
 		Value: startTimestampAsText,
 	}
 
@@ -180,22 +180,21 @@ func EditIncidentByDialog(
 	)
 
 	var (
-		userID        = incidentDetails.User.ID
-		channelID     = incidentDetails.Channel.ID
-		channelName   = incidentDetails.Channel.Name
-		submission    = incidentDetails.Submission
-		incidentTitle = submission["incident_title"]
-		product       = submission["product"]
-		commander     = submission["incident_commander"]
-		severityLevel = submission["severity_level"]
-		meeting       = submission["meeting_url"]
-		postMortem    = submission["post_mortem_url"]
-		initDateText  = submission["init_date"]
-		rootCause     = submission["root_cause"]
-		description   = submission["incident_description"]
-		supportTeam   = config.Env.SupportTeam
-		dateLayout    = "2006-01-02T15:04:05-0700"
-		initDate      time.Time
+		userID             = incidentDetails.User.ID
+		channelID          = incidentDetails.Channel.ID
+		channelName        = incidentDetails.Channel.Name
+		submission         = incidentDetails.Submission
+		incidentTitle      = submission["incident_title"]
+		product            = submission["product"]
+		commander          = submission["incident_commander"]
+		severityLevel      = submission["severity_level"]
+		meeting            = submission["meeting_url"]
+		postMortem         = submission["post_mortem_url"]
+		startTimestampText = submission["init_date"]
+		rootCause          = submission["root_cause"]
+		description        = submission["incident_description"]
+		supportTeam        = config.Env.SupportTeam
+		startTimestamp     time.Time
 	)
 
 	incidentBeforeEdit, err := app.IncidentRepository.GetIncident(ctx, channelID)
@@ -208,23 +207,31 @@ func EditIncidentByDialog(
 		return fmt.Errorf("commands.EditIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
 	}
 
-	severityLevelInt64, err := getStringInt64(severityLevel)
-	if err != nil {
-		return err
+	severityLevelInt64 := int64(-1)
+	if severityLevel != "" {
+		severityLevelInt64, err = getStringInt64(severityLevel)
+		if err != nil {
+			return err
+		}
 	}
 
-	initDate, err = time.Parse(dateLayout, initDateText)
-	if err != nil {
-		app.Logger.Error(
-			ctx,
-			"command.EditIncidentByDialog Parse ERROR",
-			log.NewValue("channelID", channelID),
-			log.NewValue("initDateText", initDateText),
-			log.NewValue("error", err),
-		)
+	if startTimestampText != "" {
+		startTimestamp, err = time.Parse(dateLayout, startTimestampText)
+		if err != nil {
+			app.Logger.Error(
+				ctx,
+				"command.EditIncidentByDialog Parse ERROR",
+				log.NewValue("channelID", channelID),
+				log.NewValue("startTimestampText", startTimestampText),
+				log.NewValue("error", err),
+			)
 
-		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
-		return err
+			PostErrorAttachment(ctx, app, channelID, userID, err.Error())
+			return err
+		}
+
+		// convert date to timestamp
+		startTimestamp = startTimestamp.UTC()
 	}
 
 	incident := model.Incident{
@@ -232,13 +239,16 @@ func EditIncidentByDialog(
 		Title:              incidentTitle,
 		Product:            product,
 		DescriptionStarted: description,
-		StartTimestamp:     &initDate,
 		SeverityLevel:      severityLevelInt64,
 		CommanderID:        user.SlackID,
 		CommanderEmail:     user.Email,
 		MeetingURL:         meeting,
 		PostMortemURL:      postMortem,
 		RootCause:          rootCause,
+	}
+
+	if startTimestampText != "" {
+		incident.StartTimestamp = &startTimestamp
 	}
 
 	err = app.IncidentRepository.UpdateIncident(ctx, &incident)

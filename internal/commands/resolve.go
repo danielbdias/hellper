@@ -18,8 +18,6 @@ import (
 	"github.com/slack-go/slack"
 )
 
-var patternStringDate = "2013-04-01 22:43"
-
 // ResolveIncidentDialog opens a dialog on Slack, so the user can resolve an incident
 func ResolveIncidentDialog(app *app.App, triggerID string) error {
 	description := &slack.TextInputElement{

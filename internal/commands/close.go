@@ -46,13 +46,13 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 
 	startDate := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "Incident start date (UTC)",
+			Label:       "Incident start date",
 			Name:        "init_date",
 			Type:        "text",
 			Placeholder: dateLayout,
-			Hint:        "The time is in format " + dateLayout + " and UTC timezone",
 			Optional:    false,
 		},
+		Hint:  "The time is in format " + dateLayout,
 		Value: "",
 	}
 
@@ -118,7 +118,8 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	var err error
 	if startDateText != "" {
-		startDate, err = time.ParseInLocation(dateLayout, startDateText, time.UTC)
+		startDate, err = time.Parse(dateLayout, startDateText)
+
 		if err != nil {
 			logWriter.Error(
 				ctx,
@@ -130,6 +131,8 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 			PostErrorAttachment(ctx, app, channelID, userID, err.Error())
 			return err
 		}
+
+		startDate = startDate.UTC()
 	}
 
 	severityLevelInt64 := int64(-1)

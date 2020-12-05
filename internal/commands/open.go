@@ -73,7 +73,6 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 		},
 		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},
-		Value:        "2",
 	}
 
 	shouldCreateMeeting := &slack.DialogInputSelect{
@@ -170,9 +169,12 @@ func StartIncidentByDialog(
 		return fmt.Errorf("commands.StartIncidentByDialog.create_conversation_context: incident=%v error=%v", channelName, err)
 	}
 
-	severityLevelInt64, err := getStringInt64(severityLevel)
-	if err != nil {
-		return err
+	severityLevelInt64 := int64(-1)
+	if severityLevel != "" {
+		severityLevelInt64, err = getStringInt64(severityLevel)
+		if err != nil {
+			return err
+		}
 	}
 
 	if createMeeting == "yes" {

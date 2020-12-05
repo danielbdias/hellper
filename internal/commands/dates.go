@@ -13,8 +13,6 @@ import (
 	"github.com/slack-go/slack"
 )
 
-const dateLayout = "02/01/2006 15:04:05"
-
 // UpdateDatesDialog opens a dialog on Slack, so the user can update the dates of an incident
 func UpdateDatesDialog(ctx context.Context, app *app.App, channelID string, userID string, triggerID string) error {
 	var (
@@ -86,20 +84,22 @@ func UpdateDatesDialog(ctx context.Context, app *app.App, channelID string, user
 	}
 	startDate := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "Start date (" + dateLayout + ")",
+			Label:       "Start date",
 			Name:        "init_date",
 			Type:        "text",
 			Placeholder: dateLayout,
+			Hint:        "The time is in format " + dateLayout,
 			Optional:    false,
 		},
 		Value: initValue,
 	}
 	identificationDate := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "Identification date (" + dateLayout + ")",
+			Label:       "Identification date",
 			Name:        "identification_date",
 			Type:        "text",
 			Placeholder: dateLayout,
+			Hint:        "The time is in format " + dateLayout,
 			Optional:    false,
 		},
 		Value: identificationValue,
