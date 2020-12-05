@@ -27,7 +27,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		return err
 	}
 
-	serviceInstanceList := getDialogOptionsFromServiceInstances(serviceInstances)
+	serviceInstanceList := getDialogOptionsWithServiceInstances(serviceInstances)
 
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
@@ -70,7 +70,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			Placeholder: "Set the Incident commander",
 			Optional:    false,
 		},
-		Value:        inc.CommanderID,
+		Value:        inc.Commander.SlackMemberID,
 		DataSource:   "users",
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
@@ -248,7 +248,6 @@ func EditIncidentByDialog(
 		ServiceInstanceID:  serviceInstanceIDInt64,
 		DescriptionStarted: description,
 		SeverityLevel:      severityLevelInt64,
-		CommanderID:        user.SlackID,
 		CommanderEmail:     user.Email,
 		MeetingURL:         meeting,
 		PostMortemURL:      postMortem,
@@ -264,19 +263,23 @@ func EditIncidentByDialog(
 		return err
 	}
 
-	if incidentBeforeEdit.CommanderID != incident.CommanderID ||
+	incident.ServiceInstance, err = app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		return err
+	}
+
+	incident.Commander = model.Person{
+		Email:         user.Email,
+		SlackMemberID: user.SlackID,
+	}
+
+	if incidentBeforeEdit.Commander.SlackMemberID != incident.Commander.SlackMemberID ||
 		incidentBeforeEdit.PostMortemURL != incident.PostMortemURL ||
 		incidentBeforeEdit.MeetingURL != incident.MeetingURL {
 		fillTopic(ctx, app, incident, channelID, meeting, postMortem)
 	}
 
-	serviceInstance, err := app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
-	if err != nil {
-		return err
-	}
-
-	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, serviceInstance,
-		meeting, supportTeam, incidentDetails.User.Name)
+	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, meeting, supportTeam, incidentDetails.User.Name)
 	message := fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incident.ID, incidentDetails.User.Name)
 
 	postAndPinMessage(app, channelID, message, attachment)
@@ -285,16 +288,15 @@ func EditIncidentByDialog(
 }
 
 func createEditAttachment(
-	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance,
-	meetingURL string, supportTeam string, editorName string,
+	incident model.Incident, incidentID int64, meetingURL string, supportTeam string, editorName string,
 ) slack.Attachment {
 	var messageText strings.Builder
 	messageText.WriteString(fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incidentID, editorName))
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
-	messageText.WriteString("*Product / Service:* " + serviceInstance.Name + "\n")
+	messageText.WriteString("*Product / Service:* " + incident.ServiceInstance.Name + "\n")
 	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
-	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
+	messageText.WriteString("*Commander:* <@" + incident.Commander.SlackMemberID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
 	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
 
@@ -336,7 +338,7 @@ func createEditAttachment(
 			},
 			{
 				Title: "Commander",
-				Value: "<@" + incident.CommanderID + ">",
+				Value: "<@" + incident.Commander.SlackMemberID + ">",
 			},
 			{
 				Title: "Description",

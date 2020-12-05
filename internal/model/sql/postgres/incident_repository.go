@@ -43,7 +43,7 @@ func incidentLogValues(inc *model.Incident) []log.Value {
 		log.NewValue("severityLevel", inc.SeverityLevel),
 		log.NewValue("channelName", inc.ChannelName),
 		log.NewValue("channelID", inc.ChannelID),
-		log.NewValue("commanderID", inc.CommanderID),
+		log.NewValue("commanderID", inc.Commander.SlackMemberID),
 		log.NewValue("commanderEmail", inc.CommanderEmail),
 	}
 }
@@ -72,9 +72,8 @@ func (r *incidentRepository) InsertIncident(ctx context.Context, inc *model.Inci
 		, severity_level
 		, channel_name
 		, channel_id
-		, commander_id
 		, commander_email)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	RETURNING id`
 
 	id := int64(0)
@@ -96,7 +95,6 @@ func (r *incidentRepository) InsertIncident(ctx context.Context, inc *model.Inci
 		inc.SeverityLevel,
 		inc.ChannelName,
 		inc.ChannelID,
-		inc.CommanderID,
 		inc.CommanderEmail)
 
 	switch err := idResult.Scan(&id); err {
@@ -137,9 +135,8 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		post_mortem_url     = $6,
 		service_instance_id = $7,
 		severity_level      = $8,
-		commander_id        = $9,
-		commander_email     = $10
-	WHERE id = $11
+		commander_email     = $9
+	WHERE id = $10
 	RETURNING id`
 
 	_, err := r.db.Exec(
@@ -152,7 +149,6 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		inc.PostMortemURL,
 		inc.ServiceInstanceID,
 		inc.SeverityLevel,
-		inc.CommanderID,
 		inc.CommanderEmail,
 		inc.ID,
 	)
@@ -250,15 +246,15 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 		return model.Incident{}, err
 	}
 
-	rows.Scan(
+	err = rows.Scan(
 		&inc.ID,
 		&inc.Title,
 		&inc.ServiceInstance.ID,
 		&inc.ServiceInstance.Name,
 		&inc.ChannelName,
 		&inc.ChannelID,
-		&inc.CommanderID,
-		&inc.CommanderEmail,
+		&inc.Commander.SlackMemberID,
+		&inc.Commander.Email,
 		&inc.Status,
 		&inc.DescriptionStarted,
 		&inc.DescriptionResolved,
@@ -271,7 +267,16 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 		&inc.IdentificationTimestamp,
 		&inc.EndTimestamp,
 	)
+	if err != nil {
+		r.logger.Error(
+			ctx,
+			"postgres/incident-repository.GetIncident Scan ERROR",
+			log.NewValue("error", err),
+		)
+		return model.Incident{}, err
+	}
 	inc.ServiceInstanceID = inc.ServiceInstance.ID
+	inc.CommanderEmail = inc.Commander.Email
 
 	logWriter.Debug(
 		ctx,
@@ -289,7 +294,7 @@ func GetIncidentByChannelID() string {
 		, service_instance.name
 		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
 		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
-		, CASE WHEN commander_id IS NULL THEN '' ELSE commander_id END commander_id
+		, CASE WHEN person.slack_member_id IS NULL THEN '' ELSE person.slack_member_id END commander_id
 		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
 		, status
 		, CASE WHEN description_started IS NULL THEN '' ELSE description_started END description_started
@@ -304,6 +309,7 @@ func GetIncidentByChannelID() string {
 		, end_ts
 	FROM incident
   INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
+  INNER JOIN person ON incident.commander_email = person.email
 	WHERE channel_id = $1
 	LIMIT 1`
 }
@@ -547,12 +553,13 @@ func (r *incidentRepository) ListActiveIncidents(ctx context.Context) ([]model.I
 			&inc.MeetingURL,
 			&inc.PostMortemURL,
 			&inc.Status,
-			&inc.ServiceInstanceID,
+			&inc.ServiceInstance.ID,
+			&inc.ServiceInstance.Name,
 			&inc.SeverityLevel,
 			&inc.ChannelName,
 			&inc.ChannelID,
-			&inc.CommanderID,
-			&inc.CommanderEmail,
+			&inc.Commander.SlackMemberID,
+			&inc.Commander.Email,
 		)
 		if err != nil {
 			r.logger.Error(
@@ -560,9 +567,10 @@ func (r *incidentRepository) ListActiveIncidents(ctx context.Context) ([]model.I
 				"postgres/incident-repository.ListActiveIncidents Scan ERROR",
 				log.NewValue("error", err),
 			)
-
 			return nil, err
 		}
+		inc.ServiceInstanceID = inc.ServiceInstance.ID
+		inc.CommanderEmail = inc.Commander.Email
 		logIncidents = append(logIncidents, log.NewValue(fmt.Sprintf("Incident %d", i), incidentLogValues(&inc)))
 		incidents = append(incidents, inc)
 	}
@@ -596,10 +604,11 @@ func GetIncidentStatusFilterQuery() string {
 		, CASE WHEN severity_level IS NULL THEN 0 ELSE severity_level END AS severity_level
 		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
 		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
-		, CASE WHEN commander_id IS NULL THEN '' ELSE commander_id END commander_id
+		, CASE WHEN person.slack_member_id IS NULL THEN '' ELSE person.slack_member_id END commander_id
 		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
 	FROM incident
   INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
+  INNER JOIN person ON incident.commander_email = person.email
 	WHERE status IN ($1, $2)
 	LIMIT 100`
 }

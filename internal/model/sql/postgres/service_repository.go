@@ -58,7 +58,7 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 }
 
 // GetServiceInstance returns a specific service instance
-func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID int64) (*model.ServiceInstance, error) {
+func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID int64) (model.ServiceInstance, error) {
 	query := `
 	SELECT
     id,
@@ -75,7 +75,7 @@ func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID i
 			log.NewValue("instanceID", instanceID),
 			log.NewValue("Error", err),
 		)
-		return nil, err
+		return model.ServiceInstance{}, err
 	}
 	defer rows.Close()
 
@@ -87,7 +87,7 @@ func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID i
 			log.NewValue("instanceID", instanceID),
 			log.NewValue("error", err),
 		)
-		return nil, err
+		return model.ServiceInstance{}, err
 	}
 
 	var serviceInstance model.ServiceInstance
@@ -99,7 +99,7 @@ func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID i
 		log.NewValue("instanceName", serviceInstance.Name),
 	)
 
-	return &serviceInstance, nil
+	return serviceInstance, nil
 }
 
 // GetServiceInstanceOwner returns the owner team name of a service instance registered in the database
