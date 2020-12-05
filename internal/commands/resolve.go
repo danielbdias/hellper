@@ -344,7 +344,7 @@ func createResolvePrivateAttachment(inc model.Incident, event *model.Event) slac
 		privateText       strings.Builder
 	)
 
-	privateText.WriteString("The Incident <#" + inc.ChannelId + "> has been resolved by you\n\n")
+	privateText.WriteString("The Incident <#" + inc.ChannelID + "> has been resolved by you\n\n")
 	if event == nil {
 		privateText.WriteString("*Post Mortem:* A Post Mortem Meeting was not scheduled, but be sure to fill up the Post Mortem document.\n")
 		postMortemMessage = "A Post Mortem Meeting was not scheduled, but be sure to fill up the Post Mortem document."

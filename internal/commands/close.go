@@ -285,7 +285,7 @@ func createCloseChannelAttachment(inc model.Incident, userName string) slack.Att
 
 func createClosePrivateAttachment(inc model.Incident) slack.Attachment {
 	var privateText strings.Builder
-	privateText.WriteString("The Incident <#" + inc.ChannelId + "> has been closed by you\n\n")
+	privateText.WriteString("The Incident <#" + inc.ChannelID + "> has been closed by you\n\n")
 
 	return slack.Attachment{
 		Pretext:  "The Incident <#" + inc.ChannelID + "> has been closed by you",

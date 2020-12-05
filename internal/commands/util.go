@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hellper/internal/model"
 	"regexp"
 	"strconv"
