@@ -6,7 +6,6 @@ import (
 	"hellper/internal/app"
 	"hellper/internal/concurrence"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -272,11 +271,8 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 	return slack.NewTextBlockObject("mrkdwn", blockMessage, false, false)
 }
 
-func createOpenCard(
-	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User,
-) []slack.Block {
-	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title), false, false)
-	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+func createOpenCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
+	title := fmt.Sprintf(":warning: *Incident #%d - %s* has been opened", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
@@ -296,24 +292,5 @@ func createOpenCard(
 		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionStarted))
 	}
 
-	dividerBlock := slack.NewDividerBlock()
-
-	bodyBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
-		nil,
-		nil,
-	)
-
-	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
-}
-
-func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
-	channelID, timestamp, err := app.Client.PostMessage(channel, slack.MsgOptionBlocks(blockMessage...))
-	if err != nil {
-		return err
-	}
-
-	msgRef := slack.NewRefToMessage(channelID, timestamp)
-
-	return pinMessage(app, channel, msgRef)
+	return createBaseCard(title, bodySlice)
 }

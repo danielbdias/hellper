@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hellper/internal/app"
 	"hellper/internal/concurrence"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +19,10 @@ import (
 
 // CloseIncidentDialog opens a dialog on Slack, so the user can close an incident
 func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, triggerID string) error {
+	var (
+		startTimestampAsText = ""
+	)
+
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
 		app.Logger.Error(
@@ -32,6 +35,10 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 
 		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
 		return err
+	}
+
+	if inc.StartTimestamp != nil {
+		startTimestampAsText = inc.StartTimestamp.Format(dateLayout)
 	}
 
 	rootCause := &slack.TextInputElement{
@@ -55,7 +62,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 			Optional:    false,
 		},
 		Hint:  "The time is in format " + dateLayout,
-		Value: "",
+		Value: startTimestampAsText,
 	}
 
 	severityLevel := &slack.DialogInputSelect{
@@ -101,9 +108,9 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	)
 
 	var (
+		now              = time.Now().UTC()
 		channelID        = incidentDetails.Channel.ID
 		userID           = incidentDetails.User.ID
-		userName         = incidentDetails.User.Name
 		submissions      = incidentDetails.Submission
 		startDateText    = submissions["init_date"]
 		severityLevel    = submissions["severity_level"]
@@ -171,11 +178,10 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	}
 
 	incident := model.Incident{
-		RootCause:      rootCause,
-		StartTimestamp: &startDate,
-		Team:           ownerTeamName,
-		SeverityLevel:  severityLevelInt64,
-		ChannelID:      channelID,
+		RootCause:     rootCause,
+		EndTimestamp:  &now,
+		SeverityLevel: severityLevelInt64,
+		ChannelID:     channelID,
 	}
 
 	if startDateText != "" {
@@ -205,33 +211,25 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		return err
 	}
 
-	channelAttachment := createCloseChannelAttachment(inc, userName)
+	card := createCloseCard(inc, inc.ID, ownerTeamName)
+
 	privateAttachment := createClosePrivateAttachment(inc)
-	message := "The Incident <#" + inc.ChannelID + "> has been closed by <@" + userName + ">"
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
 
 	if notifyOnClose {
 		concurrence.WithWaitGroup(&waitgroup, func() {
-			postMessage(
-				app,
-				productChannelID,
-				message,
-				channelAttachment,
-			)
+			postBlockMessage(app, productChannelID, card)
 		})
 	}
+
 	concurrence.WithWaitGroup(&waitgroup, func() {
 		postMessage(app, userID, "", privateAttachment)
 	})
 
-	postAndPinMessage(
-		app,
-		channelID,
-		message,
-		channelAttachment,
-	)
+	postAndPinBlockMessage(app, channelID, card)
+
 	err = app.Client.ArchiveConversationContext(ctx, channelID)
 	if err != nil {
 		logWriter.Error(
@@ -247,45 +245,27 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	return nil
 }
 
-func createCloseChannelAttachment(inc model.Incident, userName string) slack.Attachment {
-	var messageText strings.Builder
-	messageText.WriteString("The Incident <#" + inc.ChannelID + "> has been closed by <@" + userName + ">\n\n")
-	messageText.WriteString("*Team:* <#" + inc.Team + ">\n")
-	messageText.WriteString("*Severity:* `" + getSeverityLevelText(inc.SeverityLevel) + "`\n")
-	messageText.WriteString("*Root cause:* `" + inc.RootCause + "`\n\n")
+func createCloseCard(incident model.Incident, incidentID int64, ownerTeamName string) []slack.Block {
+	title := fmt.Sprintf(":white_check_mark: *Incident #%d - %s* has been closed", incidentID, incident.Title)
 
-	return slack.Attachment{
-		Pretext:  "",
-		Fallback: messageText.String(),
-		Text:     "",
-		Color:    "#6fff47",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Incident ID",
-				Value: strconv.FormatInt(inc.ID, 10),
-			},
-			{
-				Title: "Incident Channel",
-				Value: "<#" + inc.ChannelID + ">",
-			},
-			{
-				Title: "Incident Title",
-				Value: inc.Title,
-			},
-			{
-				Title: "Team",
-				Value: inc.Team,
-			},
-			{
-				Title: "Severity",
-				Value: getSeverityLevelText(inc.SeverityLevel),
-			},
-			{
-				Title: "RootCause",
-				Value: inc.RootCause,
-			},
-		},
+	bodySlice := []string{}
+
+	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Team:*\t\t\t\t\t\t%s", ownerTeamName))
+
+	if incident.SeverityLevel > 0 {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))
 	}
+
+	if incident.PostMortemURL != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t\t<%s|post mortem link>", incident.PostMortemURL))
+	}
+
+	if incident.RootCause != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("\n*Root Cause:*\n%s", incident.RootCause))
+	}
+
+	return createBaseCard(title, bodySlice)
 }
 
 func createClosePrivateAttachment(inc model.Incident) slack.Attachment {

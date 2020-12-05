@@ -254,8 +254,8 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 		&inc.Title,
 		&inc.ServiceInstance.ID,
 		&inc.ServiceInstance.Name,
-		&inc.ChannelName,
 		&inc.ChannelID,
+		&inc.ChannelName,
 		&inc.CommanderID,
 		&inc.CommanderEmail,
 		&inc.Status,
@@ -377,13 +377,17 @@ func (r *incidentRepository) CloseIncident(ctx context.Context, inc *model.Incid
 
 	result, err := r.db.Exec(
 		`UPDATE incident SET
-			root_cause = $1,
+			root_cause     = $1,
 			severity_level = $2,
-			status = $3
-		WHERE channel_id = $4`,
+			status         = $3,
+			start_ts       = $4,
+			end_ts         = $5
+		WHERE channel_id = $6`,
 		inc.RootCause,
 		inc.SeverityLevel,
 		model.StatusClosed,
+		inc.StartTimestamp,
+		inc.EndTimestamp,
 		inc.ChannelID,
 	)
 

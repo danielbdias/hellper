@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hellper/internal/app"
-	"hellper/internal/config"
 	"hellper/internal/model"
 	"strconv"
-	"strings"
 	"time"
 
 	"hellper/internal/bot"
@@ -101,7 +99,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 
 	postMortem := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "PostMortem URL",
+			Label:       "Post Mortem URL",
 			Name:        "post_mortem_url",
 			Type:        "text",
 			Placeholder: "PostMortem URL used to discuss and learn about the incident  eg. Google Docs URL, Wiki URL",
@@ -187,14 +185,13 @@ func EditIncidentByDialog(
 		submission            = incidentDetails.Submission
 		incidentTitle         = submission["incident_title"]
 		serviceInstanceIDText = submission["product"]
-		commander             = submission["incident_commander"]
+		commanderSlackID      = submission["incident_commander"]
 		severityLevel         = submission["severity_level"]
 		meeting               = submission["meeting_url"]
 		postMortem            = submission["post_mortem_url"]
 		startTimestampText    = submission["init_date"]
 		rootCause             = submission["root_cause"]
 		description           = submission["incident_description"]
-		supportTeam           = config.Env.SupportTeam
 		startTimestamp        time.Time
 	)
 
@@ -203,9 +200,9 @@ func EditIncidentByDialog(
 		return err
 	}
 
-	user, err := getSlackUserInfo(ctx, app, commander)
+	commander, err := getSlackUserInfo(ctx, app, commanderSlackID)
 	if err != nil {
-		return fmt.Errorf("commands.EditIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
+		return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commanderSlackID, err)
 	}
 
 	severityLevelInt64 := int64(-1)
@@ -248,11 +245,12 @@ func EditIncidentByDialog(
 		ServiceInstanceID:  serviceInstanceIDInt64,
 		DescriptionStarted: description,
 		SeverityLevel:      severityLevelInt64,
-		CommanderID:        user.SlackID,
-		CommanderEmail:     user.Email,
+		CommanderID:        commander.SlackID,
+		CommanderEmail:     commander.Email,
 		MeetingURL:         meeting,
 		PostMortemURL:      postMortem,
 		RootCause:          rootCause,
+		ChannelName:        incidentBeforeEdit.ChannelName,
 	}
 
 	if startTimestampText != "" {
@@ -275,77 +273,51 @@ func EditIncidentByDialog(
 		return err
 	}
 
-	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, serviceInstance,
-		meeting, supportTeam, incidentDetails.User.Name)
-	message := fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incident.ID, incidentDetails.User.Name)
+	card := createEditCard(incident, incident.ID, serviceInstance, commander)
 
-	postAndPinMessage(app, channelID, message, attachment)
+	postBlockMessage(app, channelID, card)
 
 	return nil
 }
 
-func createEditAttachment(
-	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance,
-	meetingURL string, supportTeam string, editorName string,
-) slack.Attachment {
-	var messageText strings.Builder
-	messageText.WriteString(fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incidentID, editorName))
-	messageText.WriteString("*Title:* " + incident.Title + "\n")
-	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
-	messageText.WriteString("*Product / Service:* " + serviceInstance.Name + "\n")
-	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
-	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
-	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
-	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
+func createEditCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
+	startTimestampAsText := ""
 
-	if supportTeam != "" {
-		messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
+	if incident.StartTimestamp != nil {
+		startTimestampAsText = incident.StartTimestamp.Format(dateLayout)
 	}
 
-	preText := ""
+	title := fmt.Sprintf(":white_circle: *Incident #%d - %s* has been edited", incidentID, incident.Title)
 
-	if supportTeam != "" {
-		preText = "*cc:* <!subteam^" + supportTeam + ">"
+	bodySlice := []string{}
+
+	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", serviceInstance.Name))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
+
+	if incident.SeverityLevel > 0 {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))
 	}
 
-	return slack.Attachment{
-		Pretext:  preText,
-		Fallback: messageText.String(),
-		Text:     "",
-		Color:    "#FE4D4D",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Incident ID",
-				Value: strconv.FormatInt(incidentID, 10),
-			},
-			{
-				Title: "Incident Channel",
-				Value: "<#" + incident.ChannelID + ">",
-			},
-			{
-				Title: "Incident Title",
-				Value: incident.Title,
-			},
-			{
-				Title: "Severity",
-				Value: getSeverityLevelText(incident.SeverityLevel),
-			},
-			{
-				Title: "Product / Service",
-				Value: incident.ServiceInstance.Name,
-			},
-			{
-				Title: "Commander",
-				Value: "<@" + incident.CommanderID + ">",
-			},
-			{
-				Title: "Description",
-				Value: "```" + incident.DescriptionStarted + "```",
-			},
-			{
-				Title: "Meeting",
-				Value: meetingURL,
-			},
-		},
+	if startTimestampAsText != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Start Date:*\t\t\t\t%s", startTimestampAsText))
 	}
+
+	if incident.MeetingURL != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Meeting:*\t\t\t\t\t<%s|access meeting room>", incident.MeetingURL))
+	}
+
+	if incident.PostMortemURL != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t\t<%s|post mortem link>", incident.PostMortemURL))
+	}
+
+	if incident.DescriptionStarted != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionStarted))
+	}
+
+	if incident.RootCause != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("\n*Root Cause:*\n%s", incident.RootCause))
+	}
+
+	return createBaseCard(title, bodySlice)
 }
