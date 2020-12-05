@@ -104,7 +104,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 
 // CloseIncidentByDialog closes an incident after receiving data from a Slack dialog
 func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bot.DialogSubmission) error {
-	app.Logger.Info(
+	app.Logger.Debug(
 		ctx,
 		"command/close.CloseIncidentByDialog",
 		log.NewValue("incident_close_details", incidentDetails),
@@ -124,14 +124,18 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		startDate time.Time
 	)
 
+	logWriter := app.Logger.With(
+		log.NewValue("channelID", channelID),
+		log.NewValue("userID", userID),
+	)
+
 	var err error
 	if startDateText != "" {
 		startDate, err = time.ParseInLocation(dateLayout, startDateText, time.UTC)
 		if err != nil {
-			app.Logger.Error(
+			logWriter.Error(
 				ctx,
 				"command/close.CloseIncidentByDialog ParseInLocation start date ERROR",
-				log.NewValue("channelID", channelID),
 				log.NewValue("timeZoneString", "UTC"),
 				log.NewValue("startDateText", startDateText),
 				log.NewValue("error", err),
@@ -144,9 +148,9 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	severityLevelInt64 := int64(-1)
 	if severityLevel != "" {
 		severityLevelInt64, err = getStringInt64(severityLevel)
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
@@ -187,7 +191,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	err = app.IncidentRepository.CloseIncident(ctx, &incident)
 	if err != nil {
-		app.Logger.Error(
+		logWriter.Error(
 			ctx,
 			log.Trace(),
 			log.Reason("CloseIncident"),
@@ -199,11 +203,10 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	inc, err = app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
-		app.Logger.Error(
+		logWriter.Error(
 			ctx,
 			log.Trace(),
 			log.Reason("GetIncident"),
-			log.NewValue("channelID", channelID),
 			log.NewValue("error", err),
 		)
 		return err
@@ -238,12 +241,10 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	)
 	err = app.Client.ArchiveConversationContext(ctx, channelID)
 	if err != nil {
-		app.Logger.Error(
+		logWriter.Error(
 			ctx,
 			log.Trace(),
 			log.Reason("ArchiveConversationContext"),
-			log.NewValue("channelID", channelID),
-			log.NewValue("userID", userID),
 			log.NewValue("error", err),
 		)
 		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
