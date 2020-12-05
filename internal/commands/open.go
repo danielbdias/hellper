@@ -270,9 +270,7 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 	return slack.NewTextBlockObject("mrkdwn", blockMessage, false, false)
 }
 
-func createOpenCard(
-	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User,
-) []slack.Block {
+func createOpenCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
 	title := fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title)
 
 	bodySlice := []string{}
