@@ -26,16 +26,6 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 		return err
 	}
 
-	serviceInstanceList := getDialogOptionsFromServiceInstances(serviceInstances)
-	app.Logger.Debug(
-		ctx,
-		log.Trace(),
-		log.Reason("GetServiceList"),
-		log.NewValue("services", serviceInstances),
-		log.NewValue("serviceInstanceList", serviceInstanceList),
-		log.NewValue("error", err),
-	)
-
 	incidentTitle := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
 			Label:       "Incident Title",
@@ -54,7 +44,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 			Placeholder: "Set the product / service",
 			Optional:    false,
 		},
-		Options:      serviceInstanceList,
+		Options:      getDialogOptionsFromServiceInstances(serviceInstances),
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
 
