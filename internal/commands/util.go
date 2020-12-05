@@ -271,19 +271,43 @@ func getChannelNameFromServiceInstance(ctx context.Context, app *app.App, servic
 	}
 
 	productName := fmt.Sprintf("%s-%s", serviceInstance.ServiceName, serviceInstance.Name)
-	processedIncidentTitle := strings.ToLower(reg.ReplaceAllString(productName, ""))
+	channelName := strings.ToLower(reg.ReplaceAllString(productName, ""))
 
 	// then truncate if needed, because Slack supports channel names with an maximum of 80 characters
-	if len(processedIncidentTitle) > titleMaxSize { // timeMaxSize is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
-		processedIncidentTitle = processedIncidentTitle[:titleMaxSize]
+	if len(channelName) > titleMaxSize { // timeMaxSize is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
+		channelName = channelName[:titleMaxSize]
 	}
 
 	// finally, concatenate "inc-" as prefix and a date string as suffix
 	currentDate := time.Now()
 	currentDateAsString := fmt.Sprintf("%04d%02d%02d", currentDate.Year(), currentDate.Month(), currentDate.Day())
-	processedIncidentTitle = fmt.Sprintf("inc-%s-%s", processedIncidentTitle, currentDateAsString)
+	channelName = fmt.Sprintf("inc-%s-%s", channelName, currentDateAsString)
 
-	return processedIncidentTitle, nil
+	existingChannels, _, err := app.Client.GetConversationsContext(ctx, &slack.GetConversationsParameters{})
+	if err != nil {
+		app.Logger.Error(ctx, "Error while retrieving slack channels")
+		return "", err
+	}
+
+	possibleDuplicates := make(map[string]bool)
+	anyDuplicate := false
+	for _, channel := range existingChannels {
+		if strings.HasPrefix(channel.Name, channelName) {
+			possibleDuplicates[channel.Name] = true
+			anyDuplicate = true
+		}
+	}
+
+	if !anyDuplicate {
+		return channelName, nil
+	}
+
+	currentSufixNumber := 2
+	for possibleDuplicates[fmt.Sprintf("%s-%d", channelName, currentSufixNumber)] {
+		currentSufixNumber++
+	}
+
+	return fmt.Sprintf("%s-%d", channelName, currentSufixNumber), nil
 }
 
 func fillTopic(

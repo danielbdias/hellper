@@ -20,4 +20,5 @@ type Client interface {
 	ArchiveConversationContext(ctx context.Context, channelID string) error
 	JoinConversationContext(ctx context.Context, channelID string) (*slack.Channel, string, []string, error)
 	GetUsersInConversationContext(context.Context, *slack.GetUsersInConversationParameters) ([]string, string, error)
+	GetConversationsContext(ctx context.Context, params *slack.GetConversationsParameters) (channels []slack.Channel, nextCursor string, err error)
 }
