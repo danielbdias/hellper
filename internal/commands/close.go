@@ -214,6 +214,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 			postBlockMessage(app, productChannelID, card)
 		})
 	}
+
 	concurrence.WithWaitGroup(&waitgroup, func() {
 		postMessage(app, userID, "", privateAttachment)
 	})
@@ -236,35 +237,26 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 }
 
 func createCloseCard(incident model.Incident, incidentID int64, ownerTeamName string) []slack.Block {
-	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":information_source: *Incident #%d - %s* has been closed", incidentID, incident.Title), false, false)
-	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+	title := fmt.Sprintf(":white_check_mark: *Incident #%d - %s* has been closed", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
 	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
-	bodySlice = append(bodySlice, fmt.Sprintf("*Team:*\t\t\t\t\t\t\t#%s", ownerTeamName))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Team:*\t\t\t\t\t\t%s", ownerTeamName))
 
 	if incident.SeverityLevel > 0 {
 		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))
 	}
 
 	if incident.PostMortemURL != "" {
-		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t\t<%s|post mortem link>", incident.PostMortemURL))
+		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t<%s|post mortem link>", incident.PostMortemURL))
 	}
 
 	if incident.RootCause != "" {
 		bodySlice = append(bodySlice, fmt.Sprintf("\n*Root Cause:*\n%s", incident.RootCause))
 	}
 
-	dividerBlock := slack.NewDividerBlock()
-
-	bodyBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
-		nil,
-		nil,
-	)
-
-	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
+	return createBaseCard(title, bodySlice)
 }
 
 func createClosePrivateAttachment(inc model.Incident) slack.Attachment {

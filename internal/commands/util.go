@@ -311,3 +311,17 @@ func fillTopic(
 		)
 	}
 }
+
+func createBaseCard(title string, bodySlice []string) []slack.Block {
+	headerText := slack.NewTextBlockObject("mrkdwn", title, false, false)
+	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+
+	dividerBlock := slack.NewDividerBlock()
+
+	body := strings.Join(bodySlice, "\n")
+
+	bodyText := slack.NewTextBlockObject("mrkdwn", body, false, false)
+	bodyBlock := slack.NewSectionBlock(bodyText, nil, nil)
+
+	return []slack.Block{headerBlock, dividerBlock, bodyBlock, dividerBlock}
+}
