@@ -36,12 +36,7 @@ func (i *Inviter) CreateStrategy(strategyName string) (Strategy, error) {
 
 // InviteStakeholders executes an strategy of invitation and adds the stakeholders to the slack channel
 func (i *Inviter) InviteStakeholders(ctx context.Context, incident model.Incident, strategy Strategy) error {
-	serviceInstance, err := i.getServiceInstanceFromIncident(ctx, incident)
-	if err != nil {
-		return err
-	}
-
-	stakeholders, err := strategy.GetStakeholders(ctx, serviceInstance, incident, i.teamRepository)
+	stakeholders, err := strategy.GetStakeholders(ctx, incident.ServiceInstance, incident, i.teamRepository)
 	if err != nil {
 		i.logger.Error(
 			ctx,
@@ -60,10 +55,6 @@ func (i *Inviter) InviteStakeholders(ctx context.Context, incident model.Inciden
 	}(context.Background())
 
 	return nil
-}
-
-func (i *Inviter) getServiceInstanceFromIncident(ctx context.Context, incident model.Incident) (model.ServiceInstance, error) {
-	return model.ServiceInstance{ID: incident.Product}, nil
 }
 
 func (i *Inviter) populateStakeholdersSlackID(ctx context.Context, stakeholders []*stakeholder, incident model.Incident) {

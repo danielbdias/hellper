@@ -75,10 +75,10 @@ func OpenCancelIncidentDialog(
 
 	description := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
-			Label:       "Description",
+			Label:       "Cancel Description",
 			Name:        "incident_description",
 			Type:        "textarea",
-			Placeholder: "Description eg. We are canceling the suspected incident",
+			Placeholder: "Brief description on why you are canceling this incident. eg. Opened by accident",
 			Optional:    false,
 		},
 		MaxLength: 500,

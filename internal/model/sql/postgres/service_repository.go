@@ -3,10 +3,10 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hellper/internal/log"
 	"hellper/internal/model"
 	"hellper/internal/model/sql"
-	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -42,7 +42,6 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 			"postgres/service-repository.ListServiceInstances Query ERROR",
 			log.NewValue("Error", err),
 		)
-
 		return nil, err
 	}
 
@@ -52,49 +51,73 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 	for rows.Next() {
 		instance := model.ServiceInstance{}
 		rows.Scan(&instance.ID, &instance.Name)
-
 		serviceInstances = append(serviceInstances, &instance)
 	}
 
 	return serviceInstances, nil
 }
 
-// GetServiceInstanceOwner returns the owner team name of a service instance registered in the database
-func (r *serviceRepository) GetServiceInstanceOwnerTeamName(
-	ctx context.Context, instanceName string,
-) (string, error) {
-	names := strings.Split(instanceName, "/")
-	if len(names) < 2 {
-		err := errors.New("Unable to parse instance name #" + instanceName)
+// GetServiceInstance returns a specific service instance
+func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID int64) (*model.ServiceInstance, error) {
+	query := `
+	SELECT
+    id,
+    name
+	FROM public.service_instance
+  WHERE service_instance.id = $1
+	`
+
+	rows, err := r.db.Query(query, instanceID)
+	if err != nil {
 		r.logger.Error(
 			ctx,
-			"postgres/incident-repository.GetServiceInstanceOwnerTeamName ERROR",
-			log.NewValue("instanceName", instanceName),
+			"postgres/service-repository.GetServiceInstance Query ERROR",
+			log.NewValue("instanceID", instanceID),
+			log.NewValue("Error", err),
+		)
+		return nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		err = errors.New("Service instance #" + fmt.Sprintf("%d", instanceID) + " not found")
+		r.logger.Error(
+			ctx,
+			"postgres/incident-repository.GetServiceInstance ERROR",
+			log.NewValue("instanceID", instanceID),
 			log.NewValue("error", err),
 		)
-		return "", err
+		return nil, err
 	}
 
-	serviceName := strings.TrimSpace(names[0])
-	serviceInstanceName := strings.TrimSpace(names[1])
+	var serviceInstance model.ServiceInstance
+	rows.Scan(&serviceInstance.ID, &serviceInstance.Name)
+	r.logger.Info(
+		ctx,
+		"postgres/incident-repository.GetServiceInstance SUCCESS",
+		log.NewValue("instanceID", serviceInstance.ID),
+		log.NewValue("instanceName", serviceInstance.Name),
+	)
 
+	return &serviceInstance, nil
+}
+
+// GetServiceInstanceOwner returns the owner team name of a service instance registered in the database
+func (r *serviceRepository) GetServiceInstanceOwnerTeamName(ctx context.Context, instanceID int64) (string, error) {
 	query := `
 	SELECT
     team.name as team_name
-	FROM public.service
-	INNER JOIN public.service_instance on service.id = service_instance.service_id
+	FROM public.service_instance
 	INNER JOIN public.team on service_instance.owner_team_id = team.id
-  WHERE service.name = $1 AND service_instance.name = $2
+  WHERE service_instance.id = $1
 	`
 
-	rows, err := r.db.Query(query, serviceName, serviceInstanceName)
+	rows, err := r.db.Query(query, instanceID)
 	if err != nil {
 		r.logger.Error(
 			ctx,
 			"postgres/service-repository.GetServiceInstanceOwnerTeamName Query ERROR",
-			log.NewValue("instanceName", instanceName),
-			log.NewValue("serviceName", serviceName),
-			log.NewValue("serviceInstanceName", serviceInstanceName),
+			log.NewValue("instanceID", instanceID),
 			log.NewValue("Error", err),
 		)
 		return "", err
@@ -102,13 +125,11 @@ func (r *serviceRepository) GetServiceInstanceOwnerTeamName(
 	defer rows.Close()
 
 	if !rows.Next() {
-		err = errors.New("Owner team of service instance" + instanceName + " not found")
+		err = errors.New("Owner team of service instance #" + fmt.Sprintf("%d", instanceID) + " not found")
 		r.logger.Error(
 			ctx,
 			"postgres/incident-repository.GetServiceInstanceOwnerTeamName ERROR",
-			log.NewValue("instanceName", instanceName),
-			log.NewValue("serviceName", serviceName),
-			log.NewValue("serviceInstanceName", serviceInstanceName),
+			log.NewValue("instanceID", instanceID),
 			log.NewValue("error", err),
 		)
 		return "", err
@@ -119,9 +140,7 @@ func (r *serviceRepository) GetServiceInstanceOwnerTeamName(
 	r.logger.Info(
 		ctx,
 		"postgres/incident-repository.GetServiceInstanceOwnerTeamName SUCCESS",
-		log.NewValue("instanceName", instanceName),
-		log.NewValue("serviceName", serviceName),
-		log.NewValue("serviceInstanceName", serviceInstanceName),
+		log.NewValue("instanceID", instanceID),
 		log.NewValue("ownerTeamName", ownerTeamName),
 	)
 

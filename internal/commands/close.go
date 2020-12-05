@@ -156,7 +156,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		return err
 	}
 
-	ownerTeamName, err := app.ServiceRepository.GetServiceInstanceOwnerTeamName(ctx, inc.Product)
+	ownerTeamName, err := app.ServiceRepository.GetServiceInstanceOwnerTeamName(ctx, inc.ServiceInstanceID)
 	if err != nil {
 		app.Logger.Error(
 			ctx,

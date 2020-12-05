@@ -224,19 +224,19 @@ func fillDialogOptionsIfNeeded(options []slack.DialogSelectOption) []slack.Dialo
 	return options
 }
 
-func getDialogOptionsWithServiceInstances(services []*model.ServiceInstance) []slack.DialogSelectOption {
-	serviceList := []slack.DialogSelectOption{}
+func getDialogOptionsFromServiceInstances(serviceInstances []*model.ServiceInstance) []slack.DialogSelectOption {
+	serviceInstanceList := []slack.DialogSelectOption{}
 
-	for _, service := range services {
-		serviceList = append(serviceList, slack.DialogSelectOption{
-			Label: service.Name,
-			Value: service.Name,
+	for _, serviceInstance := range serviceInstances {
+		serviceInstanceList = append(serviceInstanceList, slack.DialogSelectOption{
+			Label: serviceInstance.Name,
+			Value: fmt.Sprintf("%d", serviceInstance.ID),
 		})
 	}
 
 	// Slack asks for at least 4 entries in the option panel. So I populate dumby options here, otherwise
 	// the open command will fail and will give no feedback whatsoever for the user.
-	return fillDialogOptionsIfNeeded(serviceList)
+	return fillDialogOptionsIfNeeded(serviceInstanceList)
 }
 
 func getDialogOptionsWithSeverityLevels() []slack.DialogSelectOption {

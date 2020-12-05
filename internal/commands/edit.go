@@ -22,12 +22,12 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		startTimestampAsText = ""
 	)
 
-	services, err := app.ServiceRepository.ListServiceInstances(ctx)
+	serviceInstances, err := app.ServiceRepository.ListServiceInstances(ctx)
 	if err != nil {
 		return err
 	}
 
-	serviceList := getDialogOptionsWithServiceInstances(services)
+	serviceInstanceList := getDialogOptionsFromServiceInstances(serviceInstances)
 
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
@@ -57,9 +57,9 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			Placeholder: "Set the product / service",
 			Optional:    false,
 		},
-		Options:      serviceList,
+		Options:      serviceInstanceList,
 		OptionGroups: []slack.DialogOptionGroup{},
-		Value:        inc.Product,
+		Value:        fmt.Sprintf("%d", inc.ServiceInstanceID),
 	}
 
 	commander := &slack.DialogInputSelect{
@@ -181,21 +181,21 @@ func EditIncidentByDialog(
 	)
 
 	var (
-		userID             = incidentDetails.User.ID
-		channelID          = incidentDetails.Channel.ID
-		channelName        = incidentDetails.Channel.Name
-		submission         = incidentDetails.Submission
-		incidentTitle      = submission["incident_title"]
-		product            = submission["product"]
-		commander          = submission["incident_commander"]
-		severityLevel      = submission["severity_level"]
-		meeting            = submission["meeting_url"]
-		postMortem         = submission["post_mortem_url"]
-		startTimestampText = submission["init_date"]
-		rootCause          = submission["root_cause"]
-		description        = submission["incident_description"]
-		supportTeam        = config.Env.SupportTeam
-		startTimestamp     time.Time
+		userID                = incidentDetails.User.ID
+		channelID             = incidentDetails.Channel.ID
+		channelName           = incidentDetails.Channel.Name
+		submission            = incidentDetails.Submission
+		incidentTitle         = submission["incident_title"]
+		serviceInstanceIDText = submission["product"]
+		commander             = submission["incident_commander"]
+		severityLevel         = submission["severity_level"]
+		meeting               = submission["meeting_url"]
+		postMortem            = submission["post_mortem_url"]
+		startTimestampText    = submission["init_date"]
+		rootCause             = submission["root_cause"]
+		description           = submission["incident_description"]
+		supportTeam           = config.Env.SupportTeam
+		startTimestamp        time.Time
 	)
 
 	incidentBeforeEdit, err := app.IncidentRepository.GetIncident(ctx, channelID)
@@ -215,6 +215,14 @@ func EditIncidentByDialog(
 			return err
 		}
 	}
+
+	var serviceInstanceID int
+	serviceInstanceID, err = strconv.Atoi(serviceInstanceIDText)
+	if err != nil {
+		return fmt.Errorf("commands.EditIncidentByDialog.service_instance_id: incident=%v product=%v error=%v",
+			channelName, serviceInstanceIDText, err)
+	}
+	serviceInstanceIDInt64 := int64(serviceInstanceID)
 
 	if startTimestampText != "" {
 		startTimestamp, err = time.Parse(dateLayout, startTimestampText)
@@ -237,7 +245,7 @@ func EditIncidentByDialog(
 	incident := model.Incident{
 		ID:                 incidentBeforeEdit.ID,
 		Title:              incidentTitle,
-		Product:            product,
+		ServiceInstanceID:  serviceInstanceIDInt64,
 		DescriptionStarted: description,
 		SeverityLevel:      severityLevelInt64,
 		CommanderID:        user.SlackID,
@@ -252,7 +260,6 @@ func EditIncidentByDialog(
 	}
 
 	err = app.IncidentRepository.UpdateIncident(ctx, &incident)
-
 	if err != nil {
 		return err
 	}
@@ -263,7 +270,13 @@ func EditIncidentByDialog(
 		fillTopic(ctx, app, incident, channelID, meeting, postMortem)
 	}
 
-	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, meeting, supportTeam, incidentDetails.User.Name)
+	serviceInstance, err := app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		return err
+	}
+
+	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, serviceInstance,
+		meeting, supportTeam, incidentDetails.User.Name)
 	message := fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incident.ID, incidentDetails.User.Name)
 
 	postAndPinMessage(app, channelID, message, attachment)
@@ -271,12 +284,15 @@ func EditIncidentByDialog(
 	return nil
 }
 
-func createEditAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string, editorName string) slack.Attachment {
+func createEditAttachment(
+	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance,
+	meetingURL string, supportTeam string, editorName string,
+) slack.Attachment {
 	var messageText strings.Builder
 	messageText.WriteString(fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incidentID, editorName))
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
-	messageText.WriteString("*Product / Service:* " + incident.Product + "\n")
+	messageText.WriteString("*Product / Service:* " + serviceInstance.Name + "\n")
 	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
 	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
 	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
@@ -316,7 +332,7 @@ func createEditAttachment(incident model.Incident, incidentID int64, meetingURL 
 			},
 			{
 				Title: "Product / Service",
-				Value: incident.Product,
+				Value: incident.ServiceInstance.Name,
 			},
 			{
 				Title: "Commander",
