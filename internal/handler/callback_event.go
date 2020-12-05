@@ -21,9 +21,14 @@ func replyCallbackEvent(
 		trigger commands.TriggerEvent
 	)
 
+	logWriter := app.Logger.With(
+		log.Action("eventReceived"),
+		log.NewValue("event", event),
+	)
+
 	switch callbackEvent := innerEvent.Data.(type) {
 	case *slackevents.AppMentionEvent:
-		app.Logger.Debug(
+		logWriter.Debug(
 			ctx,
 			"handler/event.appmention",
 			log.NewValue("callbackEvent", callbackEvent),
@@ -36,28 +41,28 @@ func replyCallbackEvent(
 			User:    callbackEvent.User,
 		}
 	case *slackevents.MessageEvent:
-		app.Logger.Info(
+		logWriter.Info(
 			ctx,
 			"handler/event.message",
 			log.NewValue("callbackEvent", callbackEvent),
 		)
 		return nil
 	case *slackevents.AppUninstalledEvent:
-		app.Logger.Debug(
+		logWriter.Debug(
 			ctx,
 			"handler/event.appunistalled",
 			log.NewValue("callbackEvent", callbackEvent),
 		)
 		return nil
 	case *slackevents.LinkSharedEvent:
-		app.Logger.Debug(
+		logWriter.Debug(
 			ctx,
 			"handler/event.linkshared",
 			log.NewValue("callbackEvent", callbackEvent),
 		)
 		return nil
 	default:
-		app.Logger.Debug(
+		logWriter.Debug(
 			ctx,
 			"handler/event.unkown_event",
 			log.NewValue("callbackEvent", callbackEvent),

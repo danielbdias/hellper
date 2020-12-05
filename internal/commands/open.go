@@ -143,11 +143,10 @@ func StartIncidentByDialog(
 		incidentTitle         = submission["incident_title"]
 		serviceInstanceIDText = submission["product"]
 		createMeeting         = submission["create_meeting"]
-		commander             = submission["incident_commander"]
+		commanderSlackID      = submission["incident_commander"]
 		severityLevel         = submission["severity_level"]
 		description           = submission["incident_description"]
 		environment           = config.Env.Environment
-		supportTeam           = config.Env.SupportTeam
 		productChannelID      = config.Env.ProductChannelID
 		meetingURL            = ""
 	)
@@ -157,9 +156,9 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	user, err := getSlackUserInfo(ctx, app, commander)
+	commander, err := getSlackUserInfo(ctx, app, commanderSlackID)
 	if err != nil {
-		return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commander, err)
+		return fmt.Errorf("commands.StartIncidentByDialog.get_slack_user_info: incident=%v commanderId=%v error=%v", channelName, commanderSlackID, err)
 	}
 
 	channel, err := app.Client.CreateConversationContext(ctx, channelName, false)
@@ -211,8 +210,8 @@ func StartIncidentByDialog(
 		IdentificationTimestamp: &now,
 		SeverityLevel:           severityLevelInt64,
 		IncidentAuthor:          incidentAuthor,
-		CommanderID:             user.SlackID,
-		CommanderEmail:          user.Email,
+		CommanderID:             commander.SlackID,
+		CommanderEmail:          commander.Email,
 		MeetingURL:              meetingURL,
 	}
 
@@ -226,28 +225,19 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	attachment := createOpenAttachment(incident, incidentID, serviceInstance, meetingURL, supportTeam)
-	message := "An Incident has been opened by <@" + incident.IncidentAuthor + ">"
+	card := createOpenCard(incident, incidentID, serviceInstance, commander)
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
 
 	concurrence.WithWaitGroup(&waitgroup, func() {
-		postAndPinMessage(app, channel.ID, message, attachment)
+		postAndPinBlockMessage(app, channel.ID, card)
 	})
 	concurrence.WithWaitGroup(&waitgroup, func() {
-		postMessage(app, productChannelID, message, attachment)
+		postAndPinBlockMessage(app, productChannelID, card)
 	})
 
-	shouldWritePostMortem := app.FileStorage != nil
-	if shouldWritePostMortem {
-		//We need run that without wait because the modal need close in only 3s
-		go createPostMortemAndFillTopic(ctx, app, incident, incidentID, channel, meetingURL)
-	} else {
-		fillTopic(ctx, app, incident, channel.ID, meetingURL, "")
-	}
-
-	// startReminderStatusJob(ctx, logger, client, repository, incident)
+	fillTopic(ctx, app, incident, channel.ID, meetingURL, "")
 
 	_, warning, metaWarning, err := app.Client.JoinConversationContext(ctx, channel.ID)
 	if err != nil {
@@ -276,86 +266,53 @@ func StartIncidentByDialog(
 	return app.Inviter.InviteStakeholders(ctx, incident, strategy)
 }
 
-func createPostMortemAndFillTopic(
-	ctx context.Context, app *app.App, incident model.Incident, incidentID int64, channel *slack.Channel, meetingURL string,
-) {
-	postMortemURL, err := createPostMortem(ctx, app, incidentID, incident.Title, channel.Name)
-	if err != nil {
-		app.Logger.Error(
-			ctx,
-			log.Trace(),
-			log.Reason("createPostMortem"),
-			log.NewValue("channel.Name", channel.Name),
-			log.NewValue("error", err),
-		)
-		return
-	}
-
-	fillTopic(ctx, app, incident, channel.ID, meetingURL, postMortemURL)
+func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
+	blockMessage := fmt.Sprintf(text, opts)
+	return slack.NewTextBlockObject("mrkdwn", blockMessage, false, false)
 }
 
-func createOpenAttachment(
-	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance,
-	meetingURL string, supportTeam string,
-) slack.Attachment {
-	var messageText strings.Builder
-	messageText.WriteString("An Incident has been opened by <@" + incident.IncidentAuthor + ">\n\n")
-	messageText.WriteString("*Title:* " + incident.Title + "\n")
-	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
-	messageText.WriteString("*Product / Service:* " + serviceInstance.Name + "\n")
-	messageText.WriteString("*Channel:* <#" + incident.ChannelName + ">\n")
-	messageText.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
-	messageText.WriteString("*Description:* `" + incident.DescriptionStarted + "`\n\n")
-	messageText.WriteString("*Meeting:* " + meetingURL + "\n")
+func createOpenCard(
+	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User,
+) []slack.Block {
+	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title), false, false)
+	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
 
-	if supportTeam != "" {
-		messageText.WriteString("*cc:* <@" + supportTeam + ">\n")
+	bodySlice := []string{}
+
+	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", serviceInstance.Name))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
+
+	if incident.SeverityLevel > 0 {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))
 	}
 
-	preText := ""
-
-	if supportTeam != "" {
-		preText = "*cc:* <!subteam^" + supportTeam + ">"
+	if incident.MeetingURL != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("*Meeting:*\t\t\t\t\t<%s|access meeting room>", incident.MeetingURL))
 	}
 
-	return slack.Attachment{
-		Pretext:  preText,
-		Fallback: messageText.String(),
-		Text:     "",
-		Color:    "#FE4D4D",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Incident ID",
-				Value: strconv.FormatInt(incidentID, 10),
-			},
-			{
-				Title: "Incident Channel",
-				Value: "<#" + incident.ChannelID + ">",
-			},
-			{
-				Title: "Incident Title",
-				Value: incident.Title,
-			},
-			{
-				Title: "Severity",
-				Value: getSeverityLevelText(incident.SeverityLevel),
-			},
-			{
-				Title: "Product / Service",
-				Value: incident.ServiceInstance.Name,
-			},
-			{
-				Title: "Commander",
-				Value: "<@" + incident.CommanderID + ">",
-			},
-			{
-				Title: "Description",
-				Value: "```" + incident.DescriptionStarted + "```",
-			},
-			{
-				Title: "Meeting",
-				Value: meetingURL,
-			},
-		},
+	if incident.DescriptionStarted != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionStarted))
 	}
+
+	dividerBlock := slack.NewDividerBlock()
+
+	bodyBlock := slack.NewSectionBlock(
+		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
+		nil,
+		nil,
+	)
+
+	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
+}
+
+func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
+	channelID, timestamp, err := app.Client.PostMessage(channel, slack.MsgOptionBlocks(blockMessage...))
+	if err != nil {
+		return err
+	}
+
+	msgRef := slack.NewRefToMessage(channelID, timestamp)
+
+	return pinMessage(app, channel, msgRef)
 }
