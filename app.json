@@ -92,10 +92,6 @@
       "description": "Support team identifier",
       "value": "YOUR_SLACK_GROUP_ID"
     },
-    "HELLPER_PRODUCT_LIST": {
-      "description": "List of all products splitted by semicolon",
-      "value": "Your Product X;Your Product Y;Your Product Z"
-    },
     "HELLPER_SLACK_SIGNING_SECRET": {
       "description": "Slack signs the requests confirming that each request comes from Slack by verifying its unique signature.",
       "value": "YOUR_SLACK_SIGNING_SECRET"

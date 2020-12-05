@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hellper/internal/app"
 	"hellper/internal/concurrence"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,12 +21,10 @@ import (
 
 // OpenStartIncidentDialog opens a dialog on Slack, so the user can start an incident
 func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, triggerID string) error {
-	services, err := app.ServiceRepository.ListServiceInstances(ctx)
+	serviceInstances, err := app.ServiceRepository.ListServiceInstances(ctx)
 	if err != nil {
 		return err
 	}
-
-	serviceList := getDialogOptionsWithServiceInstances(services)
 
 	incidentTitle := &slack.TextInputElement{
 		DialogInput: slack.DialogInput{
@@ -45,7 +44,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 			Placeholder: "Set the product / service",
 			Optional:    false,
 		},
-		Options:      serviceList,
+		Options:      getDialogOptionsFromServiceInstances(serviceInstances),
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
 
@@ -138,18 +137,18 @@ func StartIncidentByDialog(
 	)
 
 	var (
-		now              = time.Now().UTC()
-		incidentAuthor   = incidentDetails.User.ID
-		submission       = incidentDetails.Submission
-		incidentTitle    = submission["incident_title"]
-		product          = submission["product"]
-		createMeeting    = submission["create_meeting"]
-		commanderSlackID = submission["incident_commander"]
-		severityLevel    = submission["severity_level"]
-		description      = submission["incident_description"]
-		environment      = config.Env.Environment
-		productChannelID = config.Env.ProductChannelID
-		meetingURL       = ""
+		now                   = time.Now().UTC()
+		incidentAuthor        = incidentDetails.User.ID
+		submission            = incidentDetails.Submission
+		incidentTitle         = submission["incident_title"]
+		serviceInstanceIDText = submission["product"]
+		createMeeting         = submission["create_meeting"]
+		commanderSlackID      = submission["incident_commander"]
+		severityLevel         = submission["severity_level"]
+		description           = submission["incident_description"]
+		environment           = config.Env.Environment
+		productChannelID      = config.Env.ProductChannelID
+		meetingURL            = ""
 	)
 
 	channelName, err := getChannelNameFromIncidentTitle(incidentTitle)
@@ -175,6 +174,14 @@ func StartIncidentByDialog(
 		}
 	}
 
+	var serviceInstanceID int
+	serviceInstanceID, err = strconv.Atoi(serviceInstanceIDText)
+	if err != nil {
+		return fmt.Errorf("commands.StartIncidentByDialog.service_instance_id: incident=%v product=%v error=%v",
+			channelName, serviceInstanceIDText, err)
+	}
+	serviceInstanceIDInt64 := int64(serviceInstanceID)
+
 	if createMeeting == "yes" {
 		options := map[string]string{
 			"channel":     channelName,
@@ -182,7 +189,6 @@ func StartIncidentByDialog(
 		}
 
 		url, err := meeting.CreateMeeting(options)
-
 		if err != nil {
 			app.Logger.Error(
 				ctx,
@@ -191,7 +197,6 @@ func StartIncidentByDialog(
 				log.NewValue("error", err),
 			)
 		}
-
 		meetingURL = url
 	}
 
@@ -199,7 +204,7 @@ func StartIncidentByDialog(
 		ChannelName:             channelName,
 		ChannelID:               channel.ID,
 		Title:                   incidentTitle,
-		Product:                 product,
+		ServiceInstanceID:       serviceInstanceIDInt64,
 		DescriptionStarted:      description,
 		Status:                  model.StatusOpen,
 		IdentificationTimestamp: &now,
@@ -215,7 +220,12 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	card := createOpenCard(incident, incidentID, commander)
+	serviceInstance, err := app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		return err
+	}
+
+	card := createOpenCard(incident, incidentID, serviceInstance, commander)
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
@@ -261,13 +271,15 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 	return slack.NewTextBlockObject("mrkdwn", blockMessage, false, false)
 }
 
-func createOpenCard(incident model.Incident, incidentID int64, commander *model.User) []slack.Block {
+func createOpenCard(
+	incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User,
+) []slack.Block {
 	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title), false, false)
 	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
 
 	bodySlice := []string{}
 
-	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", incident.Product))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", serviceInstance.Name))
 	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
 	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
 

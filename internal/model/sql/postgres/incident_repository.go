@@ -38,7 +38,8 @@ func incidentLogValues(inc *model.Incident) []log.Value {
 		log.NewValue("meetingURL", inc.MeetingURL),
 		log.NewValue("postMortemURL", inc.PostMortemURL),
 		log.NewValue("team", inc.Team),
-		log.NewValue("product", inc.Product),
+		log.NewValue("serviceInstanceID", inc.ServiceInstanceID),
+		log.NewValue("serviceInstanceName", inc.ServiceInstance.Name),
 		log.NewValue("severityLevel", inc.SeverityLevel),
 		log.NewValue("channelName", inc.ChannelName),
 		log.NewValue("channelID", inc.ChannelID),
@@ -67,7 +68,7 @@ func (r *incidentRepository) InsertIncident(ctx context.Context, inc *model.Inci
 		, meeting_url
 		, post_mortem_url
 		, status
-		, product
+		, service_instance_id
 		, severity_level
 		, channel_name
 		, channel_id
@@ -91,7 +92,7 @@ func (r *incidentRepository) InsertIncident(ctx context.Context, inc *model.Inci
 		inc.MeetingURL,
 		inc.PostMortemURL,
 		inc.Status,
-		inc.Product,
+		inc.ServiceInstanceID,
 		inc.SeverityLevel,
 		inc.ChannelName,
 		inc.ChannelID,
@@ -134,7 +135,7 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		root_cause          = $4,
 		meeting_url         = $5,
 		post_mortem_url     = $6,
-		product             = $7,
+		service_instance_id = $7,
 		severity_level      = $8,
 		commander_id        = $9,
 		commander_email     = $10
@@ -149,7 +150,7 @@ func (r *incidentRepository) UpdateIncident(ctx context.Context, inc *model.Inci
 		inc.RootCause,
 		inc.MeetingURL,
 		inc.PostMortemURL,
-		inc.Product,
+		inc.ServiceInstanceID,
 		inc.SeverityLevel,
 		inc.CommanderID,
 		inc.CommanderEmail,
@@ -252,23 +253,25 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 	rows.Scan(
 		&inc.ID,
 		&inc.Title,
-		&inc.DescriptionStarted,
-		&inc.DescriptionCancelled,
-		&inc.DescriptionResolved,
-		&inc.StartTimestamp,
-		&inc.EndTimestamp,
-		&inc.IdentificationTimestamp,
-		&inc.RootCause,
-		&inc.MeetingURL,
-		&inc.PostMortemURL,
-		&inc.Status,
-		&inc.Product,
-		&inc.SeverityLevel,
+		&inc.ServiceInstance.ID,
+		&inc.ServiceInstance.Name,
 		&inc.ChannelName,
 		&inc.ChannelID,
 		&inc.CommanderID,
 		&inc.CommanderEmail,
+		&inc.Status,
+		&inc.DescriptionStarted,
+		&inc.DescriptionResolved,
+		&inc.DescriptionCancelled,
+		&inc.RootCause,
+		&inc.MeetingURL,
+		&inc.PostMortemURL,
+		&inc.SeverityLevel,
+		&inc.StartTimestamp,
+		&inc.IdentificationTimestamp,
+		&inc.EndTimestamp,
 	)
+	inc.ServiceInstanceID = inc.ServiceInstance.ID
 
 	logWriter.Debug(
 		ctx,
@@ -280,25 +283,27 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 // GetIncidentByChannelID retrieves an Incident given a channelID
 func GetIncidentByChannelID() string {
 	return `SELECT
-		id
+		incident.id
 		, title
+		, service_instance_id
+		, service_instance.name
+		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
+		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
+		, CASE WHEN commander_id IS NULL THEN '' ELSE commander_id END commander_id
+		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
+		, status
 		, CASE WHEN description_started IS NULL THEN '' ELSE description_started END description_started
-		, CASE WHEN description_cancelled IS NULL THEN '' ELSE description_cancelled END description_cancelled
 		, CASE WHEN description_resolved IS NULL THEN '' ELSE description_resolved END description_resolved
-		, start_ts
-		, end_ts
-		, identification_ts
+		, CASE WHEN description_cancelled IS NULL THEN '' ELSE description_cancelled END description_cancelled
 		, root_cause
 		, meeting_url
 		, post_mortem_url
-		, status
-		, product
 		, CASE WHEN severity_level IS NULL THEN 0 ELSE severity_level END AS severity_level
-		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
-		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
-		, CASE WHEN commander_id IS NULL THEN '' ELSE commander_id END commander_id
-		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
+		, start_ts
+		, identification_ts
+		, end_ts
 	FROM incident
+  INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
 	WHERE channel_id = $1
 	LIMIT 1`
 }
@@ -542,7 +547,7 @@ func (r *incidentRepository) ListActiveIncidents(ctx context.Context) ([]model.I
 			&inc.MeetingURL,
 			&inc.PostMortemURL,
 			&inc.Status,
-			&inc.Product,
+			&inc.ServiceInstanceID,
 			&inc.SeverityLevel,
 			&inc.ChannelName,
 			&inc.ChannelID,
@@ -574,7 +579,7 @@ func (r *incidentRepository) ListActiveIncidents(ctx context.Context) ([]model.I
 // GetIncidentStatusFilterQuery returns a query to filter incident by status
 func GetIncidentStatusFilterQuery() string {
 	return `SELECT
-		  id
+		  incident.id
 		, title
 		, CASE WHEN description_started IS NULL THEN '' ELSE description_started END description_started
 		, CASE WHEN description_cancelled IS NULL THEN '' ELSE description_cancelled END description_cancelled
@@ -586,13 +591,15 @@ func GetIncidentStatusFilterQuery() string {
 		, meeting_url
 		, post_mortem_url
 		, status
-		, product
+		, service_instance_id
+		, service_instance.name
 		, CASE WHEN severity_level IS NULL THEN 0 ELSE severity_level END AS severity_level
 		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
 		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
 		, CASE WHEN commander_id IS NULL THEN '' ELSE commander_id END commander_id
 		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
 	FROM incident
+  INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
 	WHERE status IN ($1, $2)
 	LIMIT 100`
 }
