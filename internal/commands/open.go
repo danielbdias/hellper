@@ -6,7 +6,6 @@ import (
 	"hellper/internal/app"
 	"hellper/internal/concurrence"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -151,7 +150,21 @@ func StartIncidentByDialog(
 		meetingURL            = ""
 	)
 
-	channelName, err := getChannelNameFromIncidentTitle(incidentTitle)
+	var serviceInstanceID int
+	serviceInstanceID, err := strconv.Atoi(serviceInstanceIDText)
+	if err != nil {
+		return fmt.Errorf("commands.StartIncidentByDialog.service_instance_id: incident=%v product=%v error=%v",
+			incidentTitle, serviceInstanceIDText, err)
+	}
+	serviceInstanceIDInt64 := int64(serviceInstanceID)
+
+	serviceInstance, err := app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		app.Logger.Error(ctx, "Invalid service instance", log.NewValue("serviceInstanceID", serviceInstanceIDInt64))
+		return err
+	}
+
+	channelName, err := getChannelNameFromServiceInstance(serviceInstance)
 	if err != nil {
 		return err
 	}
@@ -173,14 +186,6 @@ func StartIncidentByDialog(
 			return err
 		}
 	}
-
-	var serviceInstanceID int
-	serviceInstanceID, err = strconv.Atoi(serviceInstanceIDText)
-	if err != nil {
-		return fmt.Errorf("commands.StartIncidentByDialog.service_instance_id: incident=%v product=%v error=%v",
-			channelName, serviceInstanceIDText, err)
-	}
-	serviceInstanceIDInt64 := int64(serviceInstanceID)
 
 	if createMeeting == "yes" {
 		options := map[string]string{
@@ -276,8 +281,7 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 }
 
 func createOpenCard(incident model.Incident, incidentID int64) []slack.Block {
-	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title), false, false)
-	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+	title := fmt.Sprintf(":warning: *Incident #%d - %s* has been opened", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
@@ -297,24 +301,5 @@ func createOpenCard(incident model.Incident, incidentID int64) []slack.Block {
 		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionStarted))
 	}
 
-	dividerBlock := slack.NewDividerBlock()
-
-	bodyBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
-		nil,
-		nil,
-	)
-
-	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
-}
-
-func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
-	channelID, timestamp, err := app.Client.PostMessage(channel, slack.MsgOptionBlocks(blockMessage...))
-	if err != nil {
-		return err
-	}
-
-	msgRef := slack.NewRefToMessage(channelID, timestamp)
-
-	return pinMessage(app, channel, msgRef)
+	return createBaseCard(title, bodySlice)
 }

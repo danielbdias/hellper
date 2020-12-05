@@ -3,7 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
-	"strconv"
+	"fmt"
 	"strings"
 
 	"hellper/internal/app"
@@ -118,7 +118,6 @@ func CancelIncidentByDialog(
 	)
 
 	var (
-		supportTeam      = config.Env.SupportTeam
 		notifyOnCancel   = config.Env.NotifyOnCancel
 		productChannelID = config.Env.ProductChannelID
 		userID           = incidentDetails.User.ID
@@ -154,23 +153,16 @@ func CancelIncidentByDialog(
 		return err
 	}
 
-	attachment := createCancelAttachment(inc, userID)
-	message := "An Incident has been canceled by <@" + userID + "> *cc:* <!subteam^" + supportTeam + ">"
+	card := createCancelCard(inc, inc.ID)
 
-	err = postAndPinMessage(
-		app,
-		channelID,
-		message,
-		attachment,
-	)
+	err = postAndPinBlockMessage(app, channelID, card)
 
 	if err != nil {
 		logWriter.Error(
 			ctx,
 			log.Trace(),
 			log.Action("postCancelMessage"),
-			log.Reason("postAndPinMessage"),
-			log.NewValue("attachment", attachment),
+			log.Reason("postAndPinBlockMessage"),
 			log.NewValue("error", err),
 		)
 		return err
@@ -179,19 +171,14 @@ func CancelIncidentByDialog(
 	if notifyOnCancel {
 		logWriter.Debug(ctx, "Notifying incidents channel about the incident cancelation")
 
-		_, _, err := postMessage(
-			app,
-			productChannelID,
-			message,
-			attachment,
-		)
+		_, _, err := postBlockMessage(app, productChannelID, card)
+
 		if err != nil {
 			logWriter.Error(
 				ctx,
 				log.Trace(),
 				log.Action("notifyOnCancel"),
-				log.Reason("postAndPinMessage"),
-				log.NewValue("attachment", attachment),
+				log.Reason("postBlockMessage"),
 				log.NewValue("error", err),
 			)
 			return err
@@ -214,35 +201,16 @@ func CancelIncidentByDialog(
 	return nil
 }
 
-func createCancelAttachment(inc model.Incident, userID string) slack.Attachment {
-	var messageText strings.Builder
+func createCancelCard(incident model.Incident, incidentID int64) []slack.Block {
+	title := fmt.Sprintf(":no_entry: *Incident #%d - %s* has been canceled", incidentID, incident.Title)
 
-	messageText.WriteString("An Incident has been canceled by <@" + userID + ">\n\n")
-	messageText.WriteString("*Channel:* <#" + inc.ChannelID + ">\n")
-	messageText.WriteString("*Description:* `" + inc.DescriptionCancelled + "`\n\n")
+	bodySlice := []string{}
 
-	return slack.Attachment{
-		Pretext:  "",
-		Fallback: messageText.String(),
-		Text:     "",
-		Color:    "#EDA248",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Incident ID",
-				Value: strconv.FormatInt(inc.ID, 10),
-			},
-			{
-				Title: "Incident Channel",
-				Value: "<#" + inc.ChannelID + ">",
-			},
-			{
-				Title: "Incident Title",
-				Value: inc.Title,
-			},
-			{
-				Title: "Description",
-				Value: "```" + inc.DescriptionCancelled + "```",
-			},
-		},
+	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
+
+	if incident.DescriptionCancelled != "" {
+		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionCancelled))
 	}
+
+	return createBaseCard(title, bodySlice)
 }

@@ -145,6 +145,26 @@ func postAndPinMessage(app *app.App, channel string, text string, attachment ...
 	return pinMessage(app, channelID, msgRef)
 }
 
+func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
+	_, msgRef, err := postBlockMessage(app, channel, blockMessage)
+	if err != nil {
+		return err
+	}
+
+	return pinMessage(app, channel, msgRef)
+}
+
+func postBlockMessage(app *app.App, channelID string, blockMessage []slack.Block) (string, slack.ItemRef, error) {
+	channelID, timestamp, err := app.Client.PostMessage(channelID, slack.MsgOptionBlocks(blockMessage...))
+	if err != nil {
+		return "", slack.ItemRef{}, err
+	}
+
+	msgRef := slack.NewRefToMessage(channelID, timestamp)
+
+	return channelID, msgRef, nil
+}
+
 func postMessage(app *app.App, channelID string, text string, attachments ...slack.Attachment) (string, slack.ItemRef, error) {
 	return postGenericMessage(
 		app,
@@ -240,17 +260,18 @@ func getDialogOptionsWithSeverityLevels() []slack.DialogSelectOption {
 	}
 }
 
-func getChannelNameFromIncidentTitle(incidentTitle string) (string, error) {
+func getChannelNameFromServiceInstance(ctx context.Context, app *app.App, serviceInstance *model.ServiceInstance) (string, error) {
 	const titleMaxSize = 64
 
 	// first allow only alphanumeric characters on title, based on https://golangcode.com/how-to-remove-all-non-alphanumerical-characters-from-a-string/
-	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+	reg, err := regexp.Compile("[^a-zA-Z0-9\\-]+")
 
 	if err != nil {
 		return "", err
 	}
 
-	processedIncidentTitle := strings.ToLower(reg.ReplaceAllString(incidentTitle, ""))
+	productName := fmt.Sprintf("%s-%s", serviceInstance.ServiceName, serviceInstance.Name)
+	processedIncidentTitle := strings.ToLower(reg.ReplaceAllString(productName, ""))
 
 	// then truncate if needed, because Slack supports channel names with an maximum of 80 characters
 	if len(processedIncidentTitle) > titleMaxSize { // timeMaxSize is the maximum value (80) excluding the prefix (4, "inc-") and suffix (9, "-yyyyMMdd") to be added
@@ -290,4 +311,18 @@ func fillTopic(
 			log.NewValue("error", err),
 		)
 	}
+}
+
+func createBaseCard(title string, bodySlice []string) []slack.Block {
+	headerText := slack.NewTextBlockObject("mrkdwn", title, false, false)
+	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+
+	dividerBlock := slack.NewDividerBlock()
+
+	body := strings.Join(bodySlice, "\n")
+
+	bodyText := slack.NewTextBlockObject("mrkdwn", body, false, false)
+	bodyBlock := slack.NewSectionBlock(bodyText, nil, nil)
+
+	return []slack.Block{headerBlock, dividerBlock, bodyBlock, dividerBlock}
 }
