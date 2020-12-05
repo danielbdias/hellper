@@ -145,6 +145,26 @@ func postAndPinMessage(app *app.App, channel string, text string, attachment ...
 	return pinMessage(app, channelID, msgRef)
 }
 
+func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
+	_, msgRef, err := postBlockMessage(app, channel, blockMessage)
+	if err != nil {
+		return err
+	}
+
+	return pinMessage(app, channel, msgRef)
+}
+
+func postBlockMessage(app *app.App, channelID string, blockMessage []slack.Block) (string, slack.ItemRef, error) {
+	channelID, timestamp, err := app.Client.PostMessage(channelID, slack.MsgOptionBlocks(blockMessage...))
+	if err != nil {
+		return "", slack.ItemRef{}, err
+	}
+
+	msgRef := slack.NewRefToMessage(channelID, timestamp)
+
+	return channelID, msgRef, nil
+}
+
 func postMessage(app *app.App, channelID string, text string, attachments ...slack.Attachment) (string, slack.ItemRef, error) {
 	return postGenericMessage(
 		app,

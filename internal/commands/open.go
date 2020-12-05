@@ -293,14 +293,3 @@ func createOpenCard(incident model.Incident, incidentID int64, commander *model.
 
 	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
 }
-
-func postAndPinBlockMessage(app *app.App, channel string, blockMessage []slack.Block) error {
-	channelID, timestamp, err := app.Client.PostMessage(channel, slack.MsgOptionBlocks(blockMessage...))
-	if err != nil {
-		return err
-	}
-
-	msgRef := slack.NewRefToMessage(channelID, timestamp)
-
-	return pinMessage(app, channel, msgRef)
-}
