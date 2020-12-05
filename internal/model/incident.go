@@ -19,7 +19,6 @@ type Incident struct {
 	Team                    string     `db:"team,omitempty"`
 	ChannelID               string     `db:"channel_id,omitempty"`
 	ChannelName             string     `db:"channel_name,omitempty"`
-	CommanderID             string     `db:"commander_id,omitempty"`
 	CommanderEmail          string     `db:"commander_email,omitempty"`
 	IncidentAuthor          string     `db:"incident_author_id,omitempty"`
 	DescriptionStarted      string     `db:"description_started,omitempty"`
@@ -35,4 +34,5 @@ type Incident struct {
 	EndTimestamp            *time.Time `db:"end_ts,omitempty"`
 	UpdatedAt               *time.Time `db:"updated_at,omitempty"`
 	ServiceInstance         ServiceInstance
+	Commander               Person
 }

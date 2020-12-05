@@ -43,7 +43,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 			Placeholder: "Set the product / service",
 			Optional:    false,
 		},
-		Options:      getDialogOptionsFromServiceInstances(serviceInstances),
+		Options:      getDialogOptionsWithServiceInstances(serviceInstances),
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
 
@@ -164,7 +164,7 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	channelName, err := getChannelNameFromServiceInstance(ctx, app, serviceInstance)
+	channelName, err := getChannelNameFromServiceInstance(ctx, app, &serviceInstance)
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,6 @@ func StartIncidentByDialog(
 		IdentificationTimestamp: &now,
 		SeverityLevel:           severityLevelInt64,
 		IncidentAuthor:          incidentAuthor,
-		CommanderID:             commander.SlackID,
 		CommanderEmail:          commander.Email,
 		MeetingURL:              meetingURL,
 	}
@@ -225,7 +224,17 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	card := createOpenCard(incident, incidentID, serviceInstance, commander)
+	incident.ServiceInstance, err = app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		return err
+	}
+
+	incident.Commander = model.Person{
+		Email:         commander.Email,
+		SlackMemberID: commander.SlackID,
+	}
+
+	card := createOpenCard(incident, incidentID)
 
 	var waitgroup sync.WaitGroup
 	defer waitgroup.Wait()
@@ -271,14 +280,14 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 	return slack.NewTextBlockObject("mrkdwn", blockMessage, false, false)
 }
 
-func createOpenCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
+func createOpenCard(incident model.Incident, incidentID int64) []slack.Block {
 	title := fmt.Sprintf(":warning: *Incident #%d - %s* has been opened", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
-	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", serviceInstance.Name))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", incident.ServiceInstance.Name))
 	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
-	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", incident.Commander.SlackMemberID))
 
 	if incident.SeverityLevel > 0 {
 		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))

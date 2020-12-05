@@ -25,7 +25,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 		return err
 	}
 
-	serviceInstanceList := getDialogOptionsFromServiceInstances(serviceInstances)
+	serviceInstanceList := getDialogOptionsWithServiceInstances(serviceInstances)
 
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
@@ -68,7 +68,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			Placeholder: "Set the Incident commander",
 			Optional:    false,
 		},
-		Value:        inc.CommanderID,
+		Value:        inc.Commander.SlackMemberID,
 		DataSource:   "users",
 		OptionGroups: []slack.DialogOptionGroup{},
 	}
@@ -245,7 +245,6 @@ func EditIncidentByDialog(
 		ServiceInstanceID:  serviceInstanceIDInt64,
 		DescriptionStarted: description,
 		SeverityLevel:      severityLevelInt64,
-		CommanderID:        commander.SlackID,
 		CommanderEmail:     commander.Email,
 		MeetingURL:         meeting,
 		PostMortemURL:      postMortem,
@@ -262,25 +261,30 @@ func EditIncidentByDialog(
 		return err
 	}
 
-	if incidentBeforeEdit.CommanderID != incident.CommanderID ||
+	incident.ServiceInstance, err = app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
+	if err != nil {
+		return err
+	}
+
+	incident.Commander = model.Person{
+		Email:         commander.Email,
+		SlackMemberID: commander.SlackID,
+	}
+
+	if incidentBeforeEdit.Commander.SlackMemberID != incident.Commander.SlackMemberID ||
 		incidentBeforeEdit.PostMortemURL != incident.PostMortemURL ||
 		incidentBeforeEdit.MeetingURL != incident.MeetingURL {
 		fillTopic(ctx, app, incident, channelID, meeting, postMortem)
 	}
 
-	serviceInstance, err := app.ServiceRepository.GetServiceInstance(ctx, serviceInstanceIDInt64)
-	if err != nil {
-		return err
-	}
-
-	card := createEditCard(incident, incident.ID, serviceInstance, commander)
+	card := createEditCard(incident, incident.ID)
 
 	postBlockMessage(app, channelID, card)
 
 	return nil
 }
 
-func createEditCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
+func createEditCard(incident model.Incident, incidentID int64) []slack.Block {
 	startTimestampAsText := ""
 
 	if incident.StartTimestamp != nil {
@@ -291,9 +295,9 @@ func createEditCard(incident model.Incident, incidentID int64, serviceInstance *
 
 	bodySlice := []string{}
 
-	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", serviceInstance.Name))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", incident.ServiceInstance.Name))
 	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
-	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", incident.Commander.SlackMemberID))
 
 	if incident.SeverityLevel > 0 {
 		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))

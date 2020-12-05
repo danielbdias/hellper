@@ -224,7 +224,7 @@ func fillDialogOptionsIfNeeded(options []slack.DialogSelectOption) []slack.Dialo
 	return options
 }
 
-func getDialogOptionsFromServiceInstances(serviceInstances []*model.ServiceInstance) []slack.DialogSelectOption {
+func getDialogOptionsWithServiceInstances(serviceInstances []*model.ServiceInstance) []slack.DialogSelectOption {
 	serviceInstanceList := []slack.DialogSelectOption{}
 
 	for _, serviceInstance := range serviceInstances {
@@ -297,7 +297,7 @@ func fillTopic(
 	if postMortemURL != "" {
 		topic.WriteString("*PostMortemURL:* " + postMortemURL + "\n\n")
 	}
-	topic.WriteString("*Commander:* <@" + incident.CommanderID + ">\n\n")
+	topic.WriteString("*Commander:* <@" + incident.Commander.SlackMemberID + ">\n\n")
 	topicString := topic.String()
 
 	_, err := app.Client.SetTopicOfConversation(channelID, topicString)
