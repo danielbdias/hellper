@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS public.incident (
 	id serial NOT NULL,
 	title text NULL,
-	product varchar(50) NULL,
+    service_instance_id integer NOT NULL REFERENCES public.service_instance (id),
 	team text NULL,
 	channel_id varchar(50) NULL,
 	channel_name text NULL,
@@ -31,7 +31,7 @@ CREATE OR REPLACE VIEW public.metrics
   AS SELECT
     incident.id,
     incident.title,
-    incident.product,
+    service_instance_id,
     incident.team,
     incident.channel_id,
     incident.channel_name,

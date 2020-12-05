@@ -33,12 +33,7 @@ func (r *teamRepository) GetOwnersByServiceInstance(ctx context.Context, service
 	WHERE service_instance.id = $1
 	`
 
-	serviceInstanceID, err := r.getServiceInstanceIDFromName(ctx, serviceInstance.ID)
-	if err != nil {
-		return []*model.User{}, err
-	}
-
-	rows, err := r.db.Query(query, serviceInstanceID)
+	rows, err := r.db.Query(query, serviceInstance.ID)
 	if err != nil {
 		r.logger.Error(ctx, "Error while executing query GetOwnersByServiceInstance", log.NewValue("error", err))
 		return []*model.User{}, err
@@ -72,12 +67,7 @@ func (r *teamRepository) GetUsersOfServiceInstance(ctx context.Context, serviceI
 	WHERE service_instance.id = $1
 	`
 
-	serviceInstanceID, err := r.getServiceInstanceIDFromName(ctx, serviceInstance.ID)
-	if err != nil {
-		return []*model.User{}, err
-	}
-
-	rows, err := r.db.Query(query, serviceInstanceID)
+	rows, err := r.db.Query(query, serviceInstance.ID)
 	if err != nil {
 		r.logger.Error(ctx, "Error while executing query GetUsersOfServiceInstance", log.NewValue("error", err))
 		return []*model.User{}, err
