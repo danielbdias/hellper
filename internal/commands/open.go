@@ -269,7 +269,7 @@ func createOpenCard(incident model.Incident, incidentID int64, commander *model.
 
 	bodySlice = append(bodySlice, fmt.Sprintf("*Product / Service:*\t%s", incident.Product))
 	bodySlice = append(bodySlice, fmt.Sprintf("*Channel:*\t\t\t\t\t#%s", incident.ChannelName))
-	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t@%s", commander.DisplayName))
+	bodySlice = append(bodySlice, fmt.Sprintf("*Commander:*\t\t\t<@%s>", commander.SlackID))
 
 	if incident.SeverityLevel > 0 {
 		bodySlice = append(bodySlice, fmt.Sprintf("*Severity:*\t\t\t\t\t%s", getSeverityLevelText(incident.SeverityLevel)))

@@ -67,14 +67,6 @@ func processEvent(
 	case "inc-resolve":
 		return commands.ResolveIncidentByDialog(ctx, app, dialogSubmission)
 	default:
-		commands.PostErrorAttachment(
-			ctx,
-			app,
-			dialogSubmission.Channel.ID,
-			dialogSubmission.User.ID,
-			"invalid command, "+callbackID,
-		)
-
 		app.Logger.Error(
 			ctx,
 			"handler/interactive.ServeHTTP invalid_callbackID",

@@ -9,10 +9,13 @@ import (
 
 	"hellper/internal/app"
 	"hellper/internal/log"
+	"hellper/internal/messages/statusblock"
 	"hellper/internal/model"
 
 	"github.com/slack-go/slack"
 )
+
+const slackMaxBlocksPerMessage = 50
 
 func createDateFields(inc model.Incident) (fields []slack.AttachmentField) {
 	dateLayout := time.RFC1123
@@ -264,11 +267,6 @@ func postLoadingMessage(ctx context.Context, app *app.App, channelID string, use
 }
 
 func postStatus(ctx context.Context, app *app.App, channelID string, userID string) error {
-	var (
-		attachDates  slack.Attachment
-		attachStatus slack.Attachment
-	)
-
 	logWriter := app.Logger.With(
 		log.NewValue("channelID", channelID),
 	)
@@ -279,27 +277,56 @@ func postStatus(ctx context.Context, app *app.App, channelID string, userID stri
 		log.Action("running"),
 	)
 
-	attachDates, err := createDatesAttachment(ctx, app, channelID)
+	statusMessages, err := getStatusMessagesByChannel(ctx, app, channelID)
 	if err != nil {
-		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
+		logWriter.Error(ctx, "Could not load status messages", log.NewValue("error", err))
 		return err
 	}
 
-	attachStatus, err = createStatusAttachment(ctx, app, channelID)
-	if err != nil {
-		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
-		return err
+	sections := make([]slack.Block, 0, slackMaxBlocksPerMessage)
+	for _, statusMessage := range statusMessages {
+		logWriter.Debug(ctx, "Processing slack item", log.NewValue("item", statusMessage))
+		message := statusblock.Message{App: app, Item: statusMessage}
+		messageBlocks := message.CreateLayout(ctx)
+
+		// Slack limits a message to 50 blocks, so we need to split the message in case
+		// we have more blocks than that
+		if len(sections)+len(messageBlocks) > slackMaxBlocksPerMessage {
+			_, _, err = app.Client.PostMessage(channelID, slack.MsgOptionBlocks(sections...))
+
+			if err != nil {
+				logWriter.Error(ctx, "Error while sending status message", log.NewValue("error", err))
+				return err
+			}
+
+			sections = make([]slack.Block, 0, slackMaxBlocksPerMessage)
+		}
+
+		sections = append(sections, message.CreateLayout(ctx)...)
 	}
 
-	err = postMessageVisibleOnlyForUser(ctx, app, channelID, userID, "", attachDates, attachStatus)
+	_, _, err = app.Client.PostMessage(channelID, slack.MsgOptionBlocks(sections...))
 
 	if err != nil {
-		logWriter.Error(
-			ctx,
-			log.Trace(),
-			log.Action("postStatus"),
-			log.NewValue("error", err),
-		)
+		logWriter.Error(ctx, "Error while sending status message", log.NewValue("error", err))
 	}
+
 	return err
+}
+
+func getStatusMessagesByChannel(ctx context.Context, app *app.App, channelID string) ([]slack.Item, error) {
+	pins, _, err := app.Client.ListPins(channelID)
+
+	if err != nil {
+		return []slack.Item{}, err
+	}
+
+	sort.Slice(
+		pins,
+		func(i, j int) bool {
+			return pins[i].Message.Timestamp < pins[j].Message.Timestamp
+		},
+	)
+
+	return pins, nil
 }
