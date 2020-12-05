@@ -202,8 +202,7 @@ func CancelIncidentByDialog(
 }
 
 func createCancelCard(incident model.Incident, incidentID int64) []slack.Block {
-	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":information_source: *Incident #%d - %s* has been canceled", incidentID, incident.Title), false, false)
-	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+	title := fmt.Sprintf(":no_entry: *Incident #%d - %s* has been canceled", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
@@ -213,13 +212,5 @@ func createCancelCard(incident model.Incident, incidentID int64) []slack.Block {
 		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionCancelled))
 	}
 
-	dividerBlock := slack.NewDividerBlock()
-
-	bodyBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
-		nil,
-		nil,
-	)
-
-	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
+	return createBaseCard(title, bodySlice)
 }
