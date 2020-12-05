@@ -375,15 +375,19 @@ func (r *incidentRepository) CloseIncident(ctx context.Context, inc *model.Incid
 
 	result, err := r.db.Exec(
 		`UPDATE incident SET
-			root_cause = $1,
-			team = $2,
+			root_cause     = $1,
+			team           = $2,
 			severity_level = $3,
-			status = $4
-		WHERE channel_id = $5`,
+			status         = $4,
+			start_ts       = $5,
+			end_ts         = $6
+		WHERE channel_id = $7`,
 		inc.RootCause,
 		inc.Team,
 		inc.SeverityLevel,
 		model.StatusClosed,
+		inc.StartTimestamp,
+		inc.EndTimestamp,
 		inc.ChannelID,
 	)
 

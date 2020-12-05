@@ -271,7 +271,7 @@ func createTextBlock(text string, opts ...interface{}) *slack.TextBlockObject {
 }
 
 func createOpenCard(incident model.Incident, incidentID int64, serviceInstance *model.ServiceInstance, commander *model.User) []slack.Block {
-	title := fmt.Sprintf(":warning: *Incident #%d - %s*", incidentID, incident.Title)
+	title := fmt.Sprintf(":warning: *Incident #%d - %s* has been opened", incidentID, incident.Title)
 
 	bodySlice := []string{}
 

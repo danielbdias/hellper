@@ -19,6 +19,10 @@ import (
 
 // CloseIncidentDialog opens a dialog on Slack, so the user can close an incident
 func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, triggerID string) error {
+	var (
+		startTimestampAsText = ""
+	)
+
 	inc, err := app.IncidentRepository.GetIncident(ctx, channelID)
 	if err != nil {
 		app.Logger.Error(
@@ -31,6 +35,10 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 
 		PostErrorAttachment(ctx, app, channelID, userID, err.Error())
 		return err
+	}
+
+	if inc.StartTimestamp != nil {
+		startTimestampAsText = inc.StartTimestamp.Format(dateLayout)
 	}
 
 	rootCause := &slack.TextInputElement{
@@ -54,7 +62,7 @@ func CloseIncidentDialog(ctx context.Context, app *app.App, channelID, userID, t
 			Optional:    false,
 		},
 		Hint:  "The time is in format " + dateLayout,
-		Value: "",
+		Value: startTimestampAsText,
 	}
 
 	severityLevel := &slack.DialogInputSelect{
@@ -100,6 +108,7 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	)
 
 	var (
+		now              = time.Now().UTC()
 		channelID        = incidentDetails.Channel.ID
 		userID           = incidentDetails.User.ID
 		submissions      = incidentDetails.Submission
@@ -169,10 +178,10 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	}
 
 	incident := model.Incident{
-		RootCause:      rootCause,
-		StartTimestamp: &startDate,
-		SeverityLevel:  severityLevelInt64,
-		ChannelID:      channelID,
+		RootCause:     rootCause,
+		EndTimestamp:  &now,
+		SeverityLevel: severityLevelInt64,
+		ChannelID:     channelID,
 	}
 
 	if startDateText != "" {

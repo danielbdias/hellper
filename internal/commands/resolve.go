@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hellper/internal/app"
 	"hellper/internal/concurrence"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,8 +126,7 @@ func ResolveIncidentByDialog(
 }
 
 func createResolveCard(incident model.Incident, incidentID int64) []slack.Block {
-	headerText := slack.NewTextBlockObject("mrkdwn", fmt.Sprintf(":information_source: *Incident #%d - %s* has been resolved", incidentID, incident.Title), false, false)
-	headerBlock := slack.NewSectionBlock(headerText, nil, nil)
+	title := fmt.Sprintf(":large_blue_circle: *Incident #%d - %s* has been resolved", incidentID, incident.Title)
 
 	bodySlice := []string{}
 
@@ -142,13 +140,5 @@ func createResolveCard(incident model.Incident, incidentID int64) []slack.Block 
 		bodySlice = append(bodySlice, fmt.Sprintf("\n*Description:*\n%s", incident.DescriptionResolved))
 	}
 
-	dividerBlock := slack.NewDividerBlock()
-
-	bodyBlock := slack.NewSectionBlock(
-		slack.NewTextBlockObject("mrkdwn", strings.Join(bodySlice, "\n"), false, false),
-		nil,
-		nil,
-	)
-
-	return []slack.Block{headerBlock, dividerBlock, bodyBlock}
+	return createBaseCard(title, bodySlice)
 }
