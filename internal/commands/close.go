@@ -116,24 +116,24 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 		userName         = incidentDetails.User.Name
 		submissions      = incidentDetails.Submission
 		rootCause        = submissions.RootCause
-		initDateText     = submissions.InitDate
+		startDateText    = submissions.InitDate
 		severityLevel    = submissions.SeverityLevel
 		notifyOnClose    = config.Env.NotifyOnClose
 		productChannelID = config.Env.ProductChannelID
 
-		initDate time.Time
+		startDate time.Time
 	)
 
 	var err error
-	if initDateText != "" {
-		initDate, err = time.ParseInLocation(dateLayout, initDateText, time.UTC)
+	if startDateText != "" {
+		startDate, err = time.ParseInLocation(dateLayout, startDateText, time.UTC)
 		if err != nil {
 			app.Logger.Error(
 				ctx,
-				"command/dates.UpdateDatesByDialog ParseInLocation start date ERROR",
+				"command/close.CloseIncidentByDialog ParseInLocation start date ERROR",
 				log.NewValue("channelID", channelID),
 				log.NewValue("timeZoneString", "UTC"),
-				log.NewValue("initDateText", initDateText),
+				log.NewValue("startDateText", startDateText),
 				log.NewValue("error", err),
 			)
 			PostErrorAttachment(ctx, app, channelID, userID, err.Error())
@@ -176,13 +176,13 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	incident := model.Incident{
 		RootCause:      rootCause,
-		StartTimestamp: &initDate,
+		StartTimestamp: &startDate,
 		Team:           ownerTeamName,
 		SeverityLevel:  severityLevelInt64,
 		ChannelId:      channelID,
 	}
-	if initDateText != "" {
-		incident.StartTimestamp = &initDate
+	if startDateText != "" {
+		incident.StartTimestamp = &startDate
 	}
 
 	err = app.IncidentRepository.CloseIncident(ctx, &incident)
