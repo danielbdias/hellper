@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS public.incident (
 	id serial NOT NULL,
 	title text NULL,
     service_instance_id integer NOT NULL REFERENCES public.service_instance (id),
-	team text NULL,
 	channel_id varchar(50) NULL,
 	channel_name text NULL,
     commander_id text NULL,
@@ -24,38 +23,3 @@ CREATE TABLE IF NOT EXISTS public.incident (
 	updated_at timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT firstkey PRIMARY KEY (id)
 );
-
--- View table
--- DROP VIEW public.metrics;
-CREATE OR REPLACE VIEW public.metrics
-  AS SELECT
-    incident.id,
-    incident.title,
-    service_instance_id,
-    incident.team,
-    incident.channel_id,
-    incident.channel_name,
-    incident.commander_id,
-    incident.commander_email,
-    incident.status,
-    incident.description_started,
-    incident.description_resolved,
-    incident.description_cancelled,
-    incident.root_cause,
-    incident.post_mortem_url,
-    incident.severity_level,
-    incident.end_ts::date AS date,
-    to_char(incident.start_ts, 'YYYY-MM-DD HH24:MI:SS'::text) AS start_ts,
-    to_char(incident.identification_ts, 'YYYY-MM-DD HH24:MI:SS'::text) AS identification_ts,
-    to_char(incident.end_ts, 'YYYY-MM-DD HH24:MI:SS'::text) AS end_ts,
-    to_char(incident.updated_at, 'YYYY-MM-DD HH24:MI:SS'::text) AS updated_at,
-    COALESCE(date_part('epoch'::text, incident.identification_ts - incident.start_ts), 0::double precision) AS acknowledgetime,
-    COALESCE(date_part('epoch'::text, incident.end_ts - incident.identification_ts), 0::double precision) AS solutiontime,
-    COALESCE(date_part('epoch'::text, incident.end_ts - incident.start_ts), 0::double precision) AS downtime
-   FROM incident
-  WHERE incident.start_ts IS NOT NULL AND incident.end_ts IS NOT NULL AND incident.identification_ts IS NOT NULL AND incident.end_ts::date >= '2020-01-01'::date
-  ORDER BY (incident.end_ts::date);
-
--- Permissions
-ALTER TABLE public.metrics OWNER TO hellper;
-GRANT ALL ON TABLE public.metrics TO hellper;

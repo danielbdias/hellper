@@ -29,7 +29,9 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 	query := `
 	SELECT
 		service_instance.id as id,
-		(service.name || ' / ' || service_instance.name) as name
+		(service.name || ' / ' || service_instance.name) as name,
+		service.id as service_id,
+		service.name as service_name
 	FROM public.service
 	INNER JOIN public.service_instance on service_instance.service_id = service.id
 	`
@@ -50,7 +52,7 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 	serviceInstances := make([]*model.ServiceInstance, 0)
 	for rows.Next() {
 		instance := model.ServiceInstance{}
-		rows.Scan(&instance.ID, &instance.Name)
+		rows.Scan(&instance.ID, &instance.Name, &instance.ServiceID, &instance.ServiceName)
 		serviceInstances = append(serviceInstances, &instance)
 	}
 
@@ -61,10 +63,13 @@ func (r *serviceRepository) ListServiceInstances(ctx context.Context) ([]*model.
 func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID int64) (*model.ServiceInstance, error) {
 	query := `
 	SELECT
-    id,
-    name
+    service_instance.id,
+	service_instance.name,
+	service_id,
+	service.name as service_name
 	FROM public.service_instance
-  WHERE service_instance.id = $1
+	INNER JOIN public.service ON service_instance.service_id = service.id
+	WHERE service_instance.id = $1
 	`
 
 	rows, err := r.db.Query(query, instanceID)
@@ -91,7 +96,7 @@ func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID i
 	}
 
 	var serviceInstance model.ServiceInstance
-	rows.Scan(&serviceInstance.ID, &serviceInstance.Name)
+	rows.Scan(&serviceInstance.ID, &serviceInstance.Name, &serviceInstance.ServiceID, &serviceInstance.ServiceName)
 	r.logger.Info(
 		ctx,
 		"postgres/incident-repository.GetServiceInstance SUCCESS",
@@ -106,10 +111,10 @@ func (r *serviceRepository) GetServiceInstance(ctx context.Context, instanceID i
 func (r *serviceRepository) GetServiceInstanceOwnerTeamName(ctx context.Context, instanceID int64) (string, error) {
 	query := `
 	SELECT
-    team.name as team_name
+	team.name as team_name
 	FROM public.service_instance
 	INNER JOIN public.team on service_instance.owner_team_id = team.id
-  WHERE service_instance.id = $1
+	WHERE service_instance.id = $1
 	`
 
 	rows, err := r.db.Query(query, instanceID)

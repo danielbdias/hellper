@@ -37,7 +37,6 @@ func incidentLogValues(inc *model.Incident) []log.Value {
 		log.NewValue("rootCause", inc.RootCause),
 		log.NewValue("meetingURL", inc.MeetingURL),
 		log.NewValue("postMortemURL", inc.PostMortemURL),
-		log.NewValue("team", inc.Team),
 		log.NewValue("serviceInstanceID", inc.ServiceInstanceID),
 		log.NewValue("serviceInstanceName", inc.ServiceInstance.Name),
 		log.NewValue("severityLevel", inc.SeverityLevel),
@@ -266,6 +265,7 @@ func (r *incidentRepository) GetIncident(ctx context.Context, channelID string) 
 		&inc.RootCause,
 		&inc.MeetingURL,
 		&inc.PostMortemURL,
+		&inc.Team,
 		&inc.SeverityLevel,
 		&inc.StartTimestamp,
 		&inc.IdentificationTimestamp,
@@ -298,12 +298,14 @@ func GetIncidentByChannelID() string {
 		, root_cause
 		, meeting_url
 		, post_mortem_url
+		, team.name
 		, CASE WHEN severity_level IS NULL THEN 0 ELSE severity_level END AS severity_level
 		, start_ts
 		, identification_ts
 		, end_ts
 	FROM incident
   INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
+  INNER JOIN team ON service_instance.owner_team_id = team.id
 	WHERE channel_id = $1
 	LIMIT 1`
 }
@@ -376,14 +378,12 @@ func (r *incidentRepository) CloseIncident(ctx context.Context, inc *model.Incid
 	result, err := r.db.Exec(
 		`UPDATE incident SET
 			root_cause     = $1,
-			team           = $2,
-			severity_level = $3,
-			status         = $4,
-			start_ts       = $5,
-			end_ts         = $6
-		WHERE channel_id = $7`,
+			severity_level = $2,
+			status         = $3,
+			start_ts       = $4,
+			end_ts         = $5
+		WHERE channel_id = $6`,
 		inc.RootCause,
-		inc.Team,
 		inc.SeverityLevel,
 		model.StatusClosed,
 		inc.StartTimestamp,
@@ -552,6 +552,7 @@ func (r *incidentRepository) ListActiveIncidents(ctx context.Context) ([]model.I
 			&inc.PostMortemURL,
 			&inc.Status,
 			&inc.ServiceInstanceID,
+			&inc.Team,
 			&inc.SeverityLevel,
 			&inc.ChannelName,
 			&inc.ChannelID,
@@ -597,6 +598,7 @@ func GetIncidentStatusFilterQuery() string {
 		, status
 		, service_instance_id
 		, service_instance.name
+		, team.name as team
 		, CASE WHEN severity_level IS NULL THEN 0 ELSE severity_level END AS severity_level
 		, CASE WHEN channel_name IS NULL THEN '' ELSE channel_name END AS channel_name
 		, CASE WHEN channel_id IS NULL THEN '' ELSE channel_id END AS channel_id
@@ -604,6 +606,7 @@ func GetIncidentStatusFilterQuery() string {
 		, CASE WHEN commander_email IS NULL THEN '' ELSE commander_email END commander_email
 	FROM incident
   INNER JOIN service_instance ON incident.service_instance_id = service_instance.id
+  INNER JOIN team ON service_instance.owner_team_id = team.id
 	WHERE status IN ($1, $2)
 	LIMIT 100`
 }
