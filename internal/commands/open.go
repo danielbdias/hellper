@@ -69,7 +69,7 @@ func OpenStartIncidentDialog(ctx context.Context, app *app.App, userID string, t
 			Name:        "severity_level",
 			Type:        "select",
 			Placeholder: "Set the severity level",
-			Optional:    false,
+			Optional:    true,
 		},
 		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},

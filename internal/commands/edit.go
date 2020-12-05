@@ -19,8 +19,8 @@ import (
 // OpenEditIncidentDialog opens a dialog on Slack, so the user can edit an incident
 func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string, triggerID string) error {
 	var (
-		dateLayout = "2006-01-02T15:04:05-0700"
-		initValue  = ""
+		dateLayout           = "2006-01-02T15:04:05-0700"
+		startTimestampAsText = ""
 	)
 
 	services, err := app.ServiceRepository.ListServiceInstances(ctx)
@@ -36,7 +36,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 	}
 
 	if inc.StartTimestamp != nil {
-		initValue = inc.StartTimestamp.Format(dateLayout)
+		startTimestampAsText = inc.StartTimestamp.Format(dateLayout)
 	}
 
 	incidentTitle := &slack.TextInputElement{
@@ -82,7 +82,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			Name:        "severity_level",
 			Type:        "select",
 			Placeholder: "Set the severity level",
-			Optional:    false,
+			Optional:    true,
 		},
 		Options:      getDialogOptionsWithSeverityLevels(),
 		OptionGroups: []slack.DialogOptionGroup{},
@@ -119,7 +119,7 @@ func OpenEditIncidentDialog(ctx context.Context, app *app.App, channelID string,
 			Placeholder: dateLayout,
 			Optional:    true,
 		},
-		Value: initValue,
+		Value: startTimestampAsText,
 	}
 
 	rootCause := &slack.TextInputElement{
@@ -253,17 +253,17 @@ func EditIncidentByDialog(
 		fillTopic(ctx, app, incident, channelID, meeting, postMortem)
 	}
 
-	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, meeting, supportTeam)
-	message := "An Incident has been edited by <@" + incidentDetails.User.Name + ">"
+	attachment := createEditAttachment(incident, incidentBeforeEdit.ID, meeting, supportTeam, incidentDetails.User.Name)
+	message := fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incident.ID, incidentDetails.User.Name)
 
 	postAndPinMessage(app, channelID, message, attachment)
 
 	return nil
 }
 
-func createEditAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string) slack.Attachment {
+func createEditAttachment(incident model.Incident, incidentID int64, meetingURL string, supportTeam string, editorName string) slack.Attachment {
 	var messageText strings.Builder
-	messageText.WriteString("An Incident has been edited by <@" + incident.IncidentAuthor + ">\n\n")
+	messageText.WriteString(fmt.Sprintf("The incident %d has been edited by <@%s>\n\n", incidentID, editorName))
 	messageText.WriteString("*Title:* " + incident.Title + "\n")
 	messageText.WriteString("*Severity:* " + getSeverityLevelText(incident.SeverityLevel) + "\n\n")
 	messageText.WriteString("*Product / Service:* " + incident.Product + "\n")
