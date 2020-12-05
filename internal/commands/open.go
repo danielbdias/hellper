@@ -164,7 +164,7 @@ func StartIncidentByDialog(
 		return err
 	}
 
-	channelName, err := getChannelNameFromServiceInstance(serviceInstance)
+	channelName, err := getChannelNameFromServiceInstance(ctx, app, serviceInstance)
 	if err != nil {
 		return err
 	}

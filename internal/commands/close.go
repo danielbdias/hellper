@@ -108,7 +108,6 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 	)
 
 	var (
-		now              = time.Now().UTC()
 		channelID        = incidentDetails.Channel.ID
 		userID           = incidentDetails.User.ID
 		submissions      = incidentDetails.Submission
@@ -179,7 +178,6 @@ func CloseIncidentByDialog(ctx context.Context, app *app.App, incidentDetails bo
 
 	incident := model.Incident{
 		RootCause:     rootCause,
-		EndTimestamp:  &now,
 		SeverityLevel: severityLevelInt64,
 		ChannelID:     channelID,
 	}
