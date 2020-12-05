@@ -258,7 +258,7 @@ func createCloseCard(incident model.Incident, incidentID int64, ownerTeamName st
 	}
 
 	if incident.PostMortemURL != "" {
-		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t<%s|post mortem link>", incident.PostMortemURL))
+		bodySlice = append(bodySlice, fmt.Sprintf("*Post Mortem:*\t\t\t<%s|post mortem link>", incident.PostMortemURL))
 	}
 
 	if incident.RootCause != "" {
